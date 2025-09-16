@@ -4,6 +4,10 @@ Welcome to the TFL Line Status API project! 🚇
 
 This project implements a simple MCP server. Its purpose is to fetch and processes real-time status information for London Underground lines using the official TFL API.
 
+
+<div align="center">
+<img src="assets/mcp_example.png" alt="Alt text" width="600" height=600/>
+</div>
 ## Features
 - Fetches live status for all major London Underground lines
 - Processes and formats the data as JSON

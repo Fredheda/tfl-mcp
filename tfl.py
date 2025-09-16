@@ -35,6 +35,8 @@ def fetch_all_tfl_status(lines, endpoint):
         request_string = endpoint.format(line=line)
         request_object = make_tfl_request(request_string)
         temp_df = pd.DataFrame(request_object[0]["lineStatuses"])
+        if "reason" not in temp_df.columns:
+            temp_df["reason"] = "No Disruption"
         temp_df["Line"] = line
         data = pd.concat([data, temp_df])
     return data

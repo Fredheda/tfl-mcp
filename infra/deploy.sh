@@ -16,7 +16,7 @@ az deployment group create \
   --parameters functionMcpKey="${FUNCTION_MCP_KEY:-}" \
   --query "properties.provisioningState" -o tsv
 
-FQDN=$(az functionapp show -n func-tfl-mcp -g "$RG" --query defaultHostName -o tsv)
+FQDN=$(az functionapp show -n func-tfl-mcp -g "$RG" --query properties.defaultHostName -o tsv)
 echo "Function App: https://$FQDN"
 
 if [ -z "${FUNCTION_MCP_KEY:-}" ]; then

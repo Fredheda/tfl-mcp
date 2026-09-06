@@ -8,15 +8,19 @@
 set -euo pipefail
 
 APP_NAME="tfl-status-agent-api"
-APP_ID_URI="api://tfl-status-agent"
 TENANT_ID=$(az account show --query tenantId -o tsv)
 
 EXISTING_APP_ID=$(az ad app list --display-name "$APP_NAME" --query "[0].appId" -o tsv)
 
 if [ -z "$EXISTING_APP_ID" ]; then
   echo "Creating Entra app registration '$APP_NAME'..."
-  APP_ID=$(az ad app create --display-name "$APP_NAME" --identifier-uris "$APP_ID_URI" --query appId -o tsv)
-  az ad app update --id "$APP_ID" --app-roles '[
+  # Identifier URI must be set in a second call, from the app's own appId --
+  # this tenant enforces Entra's identifier-URI security policy, which
+  # rejects an arbitrary string like "api://tfl-status-agent" (must contain
+  # a tenant-verified domain, the tenant ID, or the app's own ID instead).
+  # See https://aka.ms/identifier-uri-formatting-error.
+  APP_ID=$(az ad app create --display-name "$APP_NAME" --query appId -o tsv)
+  az ad app update --id "$APP_ID" --identifier-uris "api://$APP_ID" --app-roles '[
     {
       "allowedMemberTypes": ["Application"],
       "description": "Caller apps that may invoke the tfl-status agent.",
@@ -41,3 +45,5 @@ echo ""
 echo "AGENT_AAD_CLIENT_ID=$APP_ID"
 echo "AGENT_AAD_TENANT_ID=$TENANT_ID"
 echo "(add both to .env for infra/deploy.sh)"
+echo ""
+echo "App ID URI (audience for tokens/bicep allowedAudiences): api://$APP_ID"

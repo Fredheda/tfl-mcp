@@ -234,8 +234,13 @@ resource agentAuthConfig 'Microsoft.App/containerApps/authConfigs@2025-01-01' = 
           openIdIssuer: 'https://login.microsoftonline.com/${agentAadTenantId}/v2.0'
         }
         validation: {
+          // Audience matches scripts/setup-agent-auth.sh's identifier URI,
+          // which is api://<appId> -- Entra's identifier-URI security policy
+          // rejects an arbitrary string like "api://tfl-status-agent" (must
+          // contain a tenant-verified domain, the tenant ID, or the app's
+          // own ID). See https://aka.ms/identifier-uri-formatting-error.
           allowedAudiences: [
-            'api://tfl-status-agent'
+            'api://${agentAadClientId}'
           ]
         }
       }

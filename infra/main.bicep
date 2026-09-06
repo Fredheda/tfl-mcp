@@ -94,3 +94,153 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 output functionAppHostname string = functionApp.properties.defaultHostName
+
+// --- tfl-status agent (added in cycle 2) ---
+//
+// External ingress, its own environment (cae-tfl-status) -- internal
+// ingress can't cross Container Apps environments, and this agent must be
+// reachable from more than one (copilot-kit-exp's cae-chatbot today,
+// Portfolio's cae-portfolio later). Access control is Microsoft Entra ID
+// token validation via Container Apps' built-in auth (authConfig below),
+// not network isolation and not application code -- see
+// docs/tfl-mcp/specs/2026-09-06-tfl-status-agent-design.md.
+
+@description('Existing Azure Container Registry name (shared across this workspace).')
+param acrName string = 'acrchatbotfredheda'
+
+@description('Container Apps environment for the tfl-status agent.')
+param agentEnvironmentName string = 'cae-tfl-status'
+
+@description('tfl-status agent container app name.')
+param agentAppName string = 'ca-tfl-status-agent'
+
+@description('User-assigned managed identity used for ACR pulls by the agent.')
+param agentIdentityName string = 'id-tfl-status-acrpull'
+
+@description('Image tag to deploy for the agent (e.g. a git commit SHA).')
+param agentImageTag string = 'latest'
+
+@secure()
+param agentOpenaiApiKey string = ''
+
+@description('The tfl-status-agent-api Entra app registration client ID (from scripts/setup-agent-auth.sh).')
+param agentAadClientId string = ''
+
+@description('The tenant ID (from scripts/setup-agent-auth.sh).')
+param agentAadTenantId string = ''
+
+var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+var agentLoginServer = '${acrName}.azurecr.io'
+
+resource agentAcr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  name: acrName
+}
+
+resource agentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: agentIdentityName
+  location: location
+}
+
+resource agentAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(agentAcr.id, agentIdentity.id, acrPullRoleId)
+  scope: agentAcr
+  properties: {
+    principalId: agentIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleId)
+  }
+}
+
+resource agentEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
+  name: agentEnvironmentName
+  location: location
+  properties: {}
+}
+
+resource agentApp 'Microsoft.App/containerApps@2025-01-01' = {
+  name: agentAppName
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${agentIdentity.id}': {}
+    }
+  }
+  dependsOn: [
+    agentAcrPull
+  ]
+  properties: {
+    environmentId: agentEnvironment.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: true
+        targetPort: 8002
+        transport: 'auto'
+      }
+      registries: [
+        {
+          server: agentLoginServer
+          identity: agentIdentity.id
+        }
+      ]
+      secrets: [
+        {
+          name: 'openai-api-key'
+          value: agentOpenaiApiKey
+        }
+        {
+          name: 'function-mcp-key'
+          value: functionMcpKey
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'tfl-status-agent'
+          image: '${agentLoginServer}/tfl-status-agent:${agentImageTag}'
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+          env: [
+            { name: 'OPENAI_API_KEY', secretRef: 'openai-api-key' }
+            { name: 'FUNCTION_APP_URL', value: 'https://${functionApp.properties.defaultHostName}' }
+            { name: 'FUNCTION_MCP_KEY', secretRef: 'function-mcp-key' }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 0
+        maxReplicas: 1
+      }
+    }
+  }
+}
+
+resource agentAuthConfig 'Microsoft.App/containerApps/authConfigs@2025-01-01' = if (!empty(agentAadClientId)) {
+  parent: agentApp
+  name: 'current'
+  properties: {
+    globalValidation: {
+      unauthenticatedClientAction: 'Return401'
+    }
+    identityProviders: {
+      azureActiveDirectory: {
+        enabled: true
+        registration: {
+          clientId: agentAadClientId
+          openIdIssuer: 'https://login.microsoftonline.com/${agentAadTenantId}/v2.0'
+        }
+        validation: {
+          allowedAudiences: [
+            'api://tfl-status-agent'
+          ]
+        }
+      }
+    }
+  }
+}
+
+output agentFqdn string = agentApp.properties.configuration.ingress.fqdn

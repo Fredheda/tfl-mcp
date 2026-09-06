@@ -2,9 +2,9 @@
 """Throwaway verification script: confirms the deployed tfl-mcp Function
 App actually returns real TFL data over MCP, not just that it's "Running".
 
-Uses langchain_mcp_adapters.client.MultiServerMCPClient -- same
-library/pattern Portfolio's backend/agent/mcp_tools.py already uses for
-its own MCP tool loading. Requires mcp pinned <2.0.0 (see pyproject.toml):
+Uses langchain_mcp_adapters.client.MultiServerMCPClient -- the
+ecosystem-standard MCP-to-LangChain tool-loading bridge. Requires mcp
+pinned <2.0.0 (see pyproject.toml):
 langchain-mcp-adapters has no release compatible with mcp v2 as of this
 writing (latest, 0.3.2, hard-pins mcp<2.0.0).
 

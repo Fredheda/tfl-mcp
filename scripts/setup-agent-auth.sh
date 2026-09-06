@@ -41,6 +41,15 @@ az rest --method PATCH \
   --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SP_ID" \
   --body '{"appRoleAssignmentRequired": true}'
 
+# Unconditional (not just on first creation) so re-running this script
+# against an app that predates this fix still ends up correct. Without
+# this, Entra issues v1.0-format tokens for this app by default, which
+# fail issuer validation against the Bicep authConfig's v2.0 openIdIssuer.
+OBJECT_ID=$(az ad app show --id "$APP_ID" --query id -o tsv)
+az rest --method PATCH \
+  --uri "https://graph.microsoft.com/v1.0/applications/$OBJECT_ID" \
+  --body '{"api": {"requestedAccessTokenVersion": 2}}'
+
 echo ""
 echo "AGENT_AAD_CLIENT_ID=$APP_ID"
 echo "AGENT_AAD_TENANT_ID=$TENANT_ID"

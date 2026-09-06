@@ -223,6 +223,14 @@ resource agentAuthConfig 'Microsoft.App/containerApps/authConfigs@2025-01-01' = 
   parent: agentApp
   name: 'current'
   properties: {
+    // platform.enabled is what actually turns on Easy Auth for this app --
+    // identityProviders/globalValidation alone are configured but dormant
+    // without it (confirmed live: omitting this let unauthenticated
+    // requests through with 200, despite Return401 + a configured provider
+    // below).
+    platform: {
+      enabled: true
+    }
     globalValidation: {
       unauthenticatedClientAction: 'Return401'
     }

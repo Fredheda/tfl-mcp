@@ -14,6 +14,9 @@ This project implements a simple MCP server. Its purpose is to fetch and process
 - Example code for both script and notebook usage
 - Exposed as an MCP (Model Context Protocol) tool, runnable locally over
   stdio or as a hosted Azure Function App — see `DEPLOYMENT.md`
+- A LangGraph agent (`tfl_status_agent/`) that answers line-status
+  questions by calling the MCP tool above, exposed over the A2A protocol
+  and deployable as its own Entra-gated Container App — see `DEPLOYMENT.md`
 
 ## Quickstart
 

@@ -15,9 +15,8 @@
 // network isolation -- see
 // docs/tfl-mcp/specs/2026-09-06-tfl-mcp-function-app-design.md.
 //
-// This file grows in a later cycle to add the tfl-status-agent's Container
-// Apps environment/identity/app/authConfig alongside these resources --
-// the same one-file-per-repo pattern copilot-kit-exp's main.bicep uses.
+// Also declares the tfl-status-agent's Container Apps environment,
+// identity, app, and authConfig further down -- one file per repo.
 
 @description('Region for all resources. Defaults to the resource group location.')
 param location string = resourceGroup().location
@@ -99,10 +98,10 @@ output functionAppHostname string = functionApp.properties.defaultHostName
 //
 // External ingress, its own environment (cae-tfl-status) -- internal
 // ingress can't cross Container Apps environments, and this agent must be
-// reachable from more than one (copilot-kit-exp's cae-chatbot today,
-// Portfolio's cae-portfolio later). Access control is Microsoft Entra ID
-// token validation via Container Apps' built-in auth (authConfig below),
-// not network isolation and not application code -- see
+// reachable from multiple independent consumers, each in their own
+// environment. Access control is Microsoft Entra ID token validation via
+// Container Apps' built-in auth (authConfig below), not network isolation
+// and not application code -- see
 // docs/tfl-mcp/specs/2026-09-06-tfl-status-agent-design.md.
 
 @description('Existing Azure Container Registry name (shared across this workspace).')
@@ -212,9 +211,7 @@ resource agentApp 'Microsoft.App/containerApps@2025-01-01' = {
             // http://localhost:8002 -- the a2a-sdk client uses the agent
             // card's own baked-in url for the real RPC POST (not the host
             // used to fetch the card), so a caller's request would
-            // literally try to connect to its own localhost. Confirmed by
-            // comparing against copilot-kit-exp's fun_fact_agent, whose own
-            // container app is given the equivalent FUN_FACT_AGENT_URL.
+            // literally try to connect to its own localhost.
             { name: 'TFL_STATUS_AGENT_PUBLIC_URL', value: 'https://${agentAppName}.${agentEnvironment.properties.defaultDomain}' }
           ]
         }

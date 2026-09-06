@@ -208,6 +208,14 @@ resource agentApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'OPENAI_API_KEY', secretRef: 'openai-api-key' }
             { name: 'FUNCTION_APP_URL', value: 'https://${functionApp.properties.defaultHostName}' }
             { name: 'FUNCTION_MCP_KEY', secretRef: 'function-mcp-key' }
+            // Without this, server.py's PUBLIC_URL falls back to
+            // http://localhost:8002 -- the a2a-sdk client uses the agent
+            // card's own baked-in url for the real RPC POST (not the host
+            // used to fetch the card), so a caller's request would
+            // literally try to connect to its own localhost. Confirmed by
+            // comparing against copilot-kit-exp's fun_fact_agent, whose own
+            // container app is given the equivalent FUN_FACT_AGENT_URL.
+            { name: 'TFL_STATUS_AGENT_PUBLIC_URL', value: 'https://${agentAppName}.${agentEnvironment.properties.defaultDomain}' }
           ]
         }
       ]

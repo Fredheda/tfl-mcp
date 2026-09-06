@@ -19,3 +19,15 @@ async def test_init_graph_builds_graph_with_loaded_tools(monkeypatch):
 
     assert holder.graph is result
     assert holder.graph is not None
+
+
+async def test_init_graph_falls_back_to_no_tools_on_mcp_failure(monkeypatch):
+    monkeypatch.setattr(
+        agent, "load_mcp_tools", AsyncMock(side_effect=ConnectionError("unreachable"))
+    )
+    holder = agent.GraphHolder()
+
+    result = await holder.init_graph()
+
+    assert holder.graph is result
+    assert holder.graph is not None

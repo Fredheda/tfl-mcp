@@ -6,12 +6,15 @@ is async and has to happen at FastAPI startup (tfl_status_agent/server.py's
 lifespan) rather than at plain import time.
 """
 
+import logging
 from pathlib import Path
 
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 from tfl_status_agent.mcp_client import load_mcp_tools
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (Path(__file__).parent / "system_prompt.md").read_text()
 
@@ -29,7 +32,22 @@ class GraphHolder:
         self.graph = None
 
     async def init_graph(self):
-        tools = await load_mcp_tools()
+        try:
+            tools = await load_mcp_tools()
+        except Exception:
+            # A connection failure here previously crashed the whole
+            # FastAPI lifespan (Application startup failed. Exiting.) --
+            # confirmed live: deploying with an unreachable Function App
+            # left the container stuck restarting forever, never becoming
+            # healthy, while ingress silently kept routing to the last
+            # healthy revision. Starting with no tools instead means the
+            # process comes up and reports itself healthy; a query just
+            # gets a plain-text answer with no tool call rather than the
+            # whole agent being unreachable.
+            logger.exception(
+                "Failed to load MCP tools at startup; starting with no tools"
+            )
+            tools = []
         self.graph = create_agent(
             model="openai:gpt-5.4-mini",
             tools=tools,

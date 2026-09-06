@@ -1,7 +1,7 @@
 import json
 import logging
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.fastmcp import FastMCP
 
 import tfl_status
 
@@ -10,8 +10,8 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 
-# Initialize MCP server (mcp v2 renamed FastMCP -> MCPServer)
-mcp = MCPServer("tfl")
+# Initialize FastMCP server (pinned to mcp v1 -- see pyproject.toml)
+mcp = FastMCP("tfl")
 
 
 @mcp.tool()

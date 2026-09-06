@@ -46,7 +46,13 @@ Code (whenever `tfl_status.py` or `function_app/function_app.py` changes):
 poetry run python scripts/verify_deployed_mcp.py victoria
 ```
 Confirms a live TFL line-status call round-trips through the deployed
-Function App, not just that it shows "Running". Uses `mcp`'s own v2 client
-directly (`mcp.client.streamable_http`) -- `langchain-mcp-adapters` has no
-release compatible with `mcp` v2 as of this writing, so it isn't a
-dependency of this repo.
+Function App, not just that it shows "Running". Uses
+`langchain_mcp_adapters.client.MultiServerMCPClient` -- the same
+library/pattern Portfolio's `backend/agent/mcp_tools.py` already uses.
+This repo pins `mcp[cli]<2.0.0` specifically so this works:
+`langchain-mcp-adapters`'s latest release (`0.3.2`) hard-pins `mcp<2.0.0`
+and has no release compatible with `mcp` v2 as of this writing -- an
+earlier attempt at this repo used `mcp` v2 directly (see git history), but
+that would have meant hand-writing MCP-to-LangChain tool-wrapping glue for
+every future agent that needs MCP tools, instead of using the
+ecosystem-standard bridge. Reverted to v1 deliberately.

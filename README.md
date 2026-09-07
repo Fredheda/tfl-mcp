@@ -12,14 +12,18 @@ This project implements a simple MCP server. Its purpose is to fetch and process
 - Fetches live status for all major London Underground lines
 - Processes and formats the data as JSON
 - Example code for both script and notebook usage
-- Creates for integration with MCP (Model Context Protocol)
+- Exposed as an MCP (Model Context Protocol) tool, runnable locally over
+  stdio or as a hosted Azure Function App — see `DEPLOYMENT.md`
+- A LangGraph agent (`tfl_status_agent/`) that answers line-status
+  questions by calling the MCP tool above, exposed over the A2A protocol
+  and deployable as its own Entra-gated Container App — see `DEPLOYMENT.md`
 
 ## Quickstart
 
 ### 1. Clone the repo
 ```sh
 git clone https://github.com/Fredheda/tfl-mcp.git
-cd tfl
+cd tfl-mcp
 ```
 
 ## MCP Server Usage
@@ -31,19 +35,15 @@ This project is a ready-to-run MCP (Model Context Protocol) server. When you run
 
 
 
-### 2. Set up your environment (Recommended: [uv](https://docs.astral.sh/uv/))
+### 2. Set up your environment (Recommended: [Poetry](https://python-poetry.org/))
 ```sh
-python3 -m venv .venv
-source .venv/bin/activate
-uv pip install -e .
+poetry install
 ```
 
-This project uses a `pyproject.toml` for dependencies. If you don't have `uv`, you can use:
-```sh
-pip install -e .
-```
+This project uses Poetry (`pyproject.toml` + `poetry.lock`) for dependency
+management.
 
 ### 3. Run the script
 ```sh
-uv run tfl.py
+poetry run python tfl.py
 ```

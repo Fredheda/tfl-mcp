@@ -12,3 +12,8 @@ wheels/
 .env
 .DS_Store
 *.ipynb
+
+# Azure Functions local dev artifacts
+local.settings.json
+.python_packages/
+.azurite/

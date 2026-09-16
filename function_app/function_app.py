@@ -21,7 +21,7 @@ _GET_TFL_STATUS_PROPERTIES = json.dumps(
 @app.mcp_tool_trigger(
     arg_name="context",
     tool_name="get_tfl_status",
-    description="Get live status for one or more London Underground/DLR lines.",
+    description="Get live status for one or more TFL lines.",
     tool_properties=_GET_TFL_STATUS_PROPERTIES,
 )
 def get_tfl_status(context: str) -> str:
@@ -30,7 +30,38 @@ def get_tfl_status(context: str) -> str:
     if not lines:
         return json.dumps({"error": "lines is required"})
 
-    data = tfl_status.fetch_all_tfl_status(lines=lines, endpoint=tfl_status.TFL_ENDPOINT)
-    if data.empty:
+    data = tfl_status.fetch_line_status(lines)
+    if data is None:
         return json.dumps({"result": "Unable to fetch TFL status."})
-    return tfl_status.format_tfl_status(data)
+    return tfl_status.format_status(data)
+
+
+_GET_DISRUPTED_LINES_PROPERTIES = json.dumps(
+    [
+        {
+            "propertyName": "modes",
+            "propertyType": "array",
+            "description": "TFL modes to check, e.g. 'tube', 'dlr', 'overground', 'elizabeth-line'. Defaults to all four rail modes if omitted.",
+            "isRequired": False,
+        }
+    ]
+)
+
+
+@app.mcp_tool_trigger(
+    arg_name="context",
+    tool_name="get_disrupted_lines",
+    description="Get all TFL rail lines currently experiencing disruption.",
+    tool_properties=_GET_DISRUPTED_LINES_PROPERTIES,
+)
+def get_disrupted_lines(context: str) -> str:
+    invocation = json.loads(context)
+    modes = invocation["arguments"].get("modes") or tfl_status.DEFAULT_RAIL_MODES
+
+    data = tfl_status.fetch_status_for_modes(modes)
+    if data is None:
+        return json.dumps({"result": "Unable to fetch TFL status."})
+    disrupted = tfl_status.filter_disrupted(data)
+    if not disrupted:
+        return json.dumps({"result": "No disruptions reported."})
+    return tfl_status.format_status(disrupted)

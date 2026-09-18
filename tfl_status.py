@@ -5,15 +5,18 @@ Shared by the stdio MCP server (tfl.py) and the Azure Function App
 publish time -- see scripts/deploy-mcp-tools.sh).
 """
 
+import json
 import logging
 from typing import Any
 
-import pandas as pd
 import requests
 
 logger = logging.getLogger(__name__)
 
-TFL_ENDPOINT = "https://api.tfl.gov.uk/Line/{line}/Status"
+TFL_STATUS_BY_IDS = "https://api.tfl.gov.uk/Line/{ids}/Status"
+TFL_STATUS_BY_MODE = "https://api.tfl.gov.uk/Line/Mode/{modes}/Status"
+
+DEFAULT_RAIL_MODES = ["tube", "dlr", "overground", "elizabeth-line"]
 
 
 def make_tfl_request(url: str) -> dict[str, Any] | None:
@@ -29,41 +32,56 @@ def make_tfl_request(url: str) -> dict[str, Any] | None:
     return request_object
 
 
-def fetch_all_tfl_status(lines: list[str], endpoint: str) -> pd.DataFrame:
-    frames = []
-    logger.debug(lines)
+def fetch_line_status(line_ids: list[str]) -> list[dict] | None:
+    """Fetch status for one or more lines in a single batched request."""
+    url = TFL_STATUS_BY_IDS.format(ids=",".join(line_ids))
+    return make_tfl_request(url)
+
+
+def fetch_status_for_modes(modes: list[str]) -> list[dict] | None:
+    """Fetch status for every line of the given modes in one request."""
+    url = TFL_STATUS_BY_MODE.format(modes=",".join(modes))
+    return make_tfl_request(url)
+
+
+def filter_disrupted(lines: list[dict]) -> list[dict]:
+    """Keep only lines with at least one non-"Good Service" status."""
+    return [
+        line
+        for line in lines
+        if any(
+            status.get("statusSeverityDescription") != "Good Service"
+            for status in line.get("lineStatuses", [])
+        )
+    ]
+
+
+def format_status(lines: list[dict]) -> str:
+    """Format line status as JSON, keyed by line id.
+
+    Reads disruption detail (category, affected stops/routes) straight
+    off each status entry's own nested "disruption" object -- TFL's
+    separate Disruption endpoint returns no line-id field when queried
+    with multiple ids, so it can't be attributed back to a line, and it
+    has been observed to return nothing at all for lines that are
+    genuinely disrupted per this same Status response.
+    """
+    result: dict[str, list[dict]] = {}
     for line in lines:
-        logger.debug(line)
-        request_string = endpoint.format(line=line)
-        request_object = make_tfl_request(request_string)
-        if request_object is None:
-            temp_df = pd.DataFrame(
-                [
-                    {
-                        "statusSeverityDescription": "Unknown",
-                        "reason": "Unable to fetch TFL status for this line.",
-                    }
-                ]
-            )
-        else:
-            temp_df = pd.DataFrame(request_object[0]["lineStatuses"])
-            if "reason" not in temp_df.columns:
-                temp_df["reason"] = "No Disruption"
-        temp_df["Line"] = line
-        frames.append(temp_df)
-    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-
-
-def format_tfl_status(df: pd.DataFrame) -> str:
-    output_data = df[["Line", "statusSeverityDescription", "reason"]]
-    output_data = output_data.reset_index(drop=True)
-    output_data = output_data.fillna("No disruption")
-    output_data["Status"] = (
-        output_data["statusSeverityDescription"] + ": " + output_data["reason"]
-    )
-    output_data = output_data.drop(["statusSeverityDescription", "reason"], axis=1)
-    grouped = output_data[["Line", "Status"]].groupby("Line", as_index=False).agg(
-        {"Status": "".join}
-    )
-    grouped = grouped.set_index("Line")
-    return grouped.to_json(indent=4)
+        statuses = []
+        for status in line.get("lineStatuses", []):
+            entry = {
+                "status": status.get("statusSeverityDescription", "Unknown"),
+                "reason": status.get("reason") or "No disruption",
+            }
+            disruption = status.get("disruption")
+            if disruption:
+                if disruption.get("category"):
+                    entry["category"] = disruption["category"]
+                if disruption.get("affectedStops"):
+                    entry["affectedStops"] = disruption["affectedStops"]
+                if disruption.get("affectedRoutes"):
+                    entry["affectedRoutes"] = disruption["affectedRoutes"]
+            statuses.append(entry)
+        result[line["id"]] = statuses
+    return json.dumps(result, indent=4)

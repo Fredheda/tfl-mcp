@@ -17,3 +17,7 @@ wheels/
 local.settings.json
 .python_packages/
 .azurite/
+
+# Regenerated copy of the root tfl_status.py -- refreshed by
+# scripts/deploy-mcp-tools.sh before every deploy; never edited by hand.
+function_app/tfl_status.py

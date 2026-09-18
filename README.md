@@ -9,7 +9,10 @@ This project implements a simple MCP server. Its purpose is to fetch and process
 <img src="assets/mcp_example.png" alt="Alt text" width="600" height=600/>
 </div>
 ## Features
-- Fetches live status for all major London Underground lines
+- Fetches live status for London Underground, DLR, Elizabeth line, and
+  Overground lines
+- Two tools: `get_tfl_status` for named lines, `get_disrupted_lines` for
+  "what's disrupted right now" without naming a line first
 - Processes and formats the data as JSON
 - Example code for both script and notebook usage
 - Exposed as an MCP (Model Context Protocol) tool, runnable locally over
@@ -28,7 +31,12 @@ cd tfl-mcp
 
 ## MCP Server Usage
 
-This project is a ready-to-run MCP (Model Context Protocol) server. When you run `python tfl.py`, it starts an MCP server that you can connect to with:
+This project is a ready-to-run MCP (Model Context Protocol) server. When you run `python tfl.py`, it starts an MCP server exposing two tools:
+
+- `get_tfl_status(lines)` — status for one or more named line ids (e.g. `victoria`, `dlr`, `mildmay`).
+- `get_disrupted_lines(modes)` — every line currently disrupted, across tube/DLR/Overground/Elizabeth line by default, with no line names required.
+
+Connect to the running server with:
 
 - **Claude Desktop**: Add a new MCP server and point it to your running instance.
 - **Your own MCP client**: See the [Model Context Protocol documentation](https://modelcontextprotocol.io/docs/develop/build-server) for details.

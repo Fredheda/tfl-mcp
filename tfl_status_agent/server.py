@@ -46,7 +46,7 @@ agent_card = AgentCard(
     version="0.1.0",
     default_input_modes=["text/plain"],
     default_output_modes=["text/plain"],
-    capabilities=AgentCapabilities(streaming=False),
+    capabilities=AgentCapabilities(streaming=True),
     skills=[
         AgentSkill(
             id="tfl_status",

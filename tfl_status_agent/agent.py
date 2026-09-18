@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 from langchain.agents import create_agent
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 
 from tfl_status_agent.mcp_client import load_mcp_tools
@@ -17,6 +18,24 @@ from tfl_status_agent.mcp_client import load_mcp_tools
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (Path(__file__).parent / "system_prompt.md").read_text()
+
+
+def build_model() -> ChatOpenAI:
+    """The agent's chat model.
+
+    Responses API + reasoning summaries, not chat completions: on the
+    Responses API a reasoning model returns tool calls *and* a reasoning
+    summary in the same turn, which is what lets the executor stream
+    "why" lines alongside "what" lines. Built here (not at import) because
+    ChatOpenAI needs OPENAI_API_KEY at construction and server.py checks
+    for that key only after importing this module.
+    """
+    return ChatOpenAI(
+        model="gpt-5.6-luna",
+        use_responses_api=True,
+        output_version="responses/v1",
+        reasoning={"effort": "low", "summary": "auto"},
+    )
 
 
 class GraphHolder:
@@ -49,7 +68,7 @@ class GraphHolder:
             )
             tools = []
         self.graph = create_agent(
-            model="openai:gpt-5.4-mini",
+            model=build_model(),
             tools=tools,
             system_prompt=SYSTEM_PROMPT,
             checkpointer=MemorySaver(),

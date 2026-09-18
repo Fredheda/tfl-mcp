@@ -68,6 +68,16 @@ Microsoft Entra ID token validation via Container Apps' built-in auth, not
 network isolation or application code -- see
 `docs/tfl-mcp/specs/2026-09-06-tfl-status-agent-design.md`.
 
+The agent **streams**: its card advertises `capabilities.streaming: true`,
+and while a task runs it publishes `WORKING` status updates (one per
+reasoning summary, tool call, tool result, and the final "composing
+answer" step, with the kind in the event's `metadata.kind`) before the
+final artifact. A caller that opens the call with a streaming-capable
+client sees those as they happen; a non-streaming caller gets the same
+final task in one response. The model is `gpt-5.6-luna` on the OpenAI
+Responses API with reasoning summaries enabled, which is what produces the
+reasoning lines.
+
 ### Deploy
 
 Entra auth setup (idempotent, one-time or whenever it needs re-running):
@@ -104,7 +114,7 @@ new consumer of this agent should use.
 ```bash
 poetry run uvicorn tfl_status_agent.server:app --port 8002   # local server, no auth locally
 poetry run python scripts/verify_agent_card.py                # discovery check
-poetry run python scripts/ask_tfl_status_agent.py "victoria line status"   # real end-to-end call
+poetry run python scripts/ask_tfl_status_agent.py "victoria line status"   # real end-to-end call, prints progress lines live (--blocking for the old single response)
 ```
 A real end-to-end call (A2A -> LangGraph -> MCP tool -> live TFL API) takes
 15-20+ seconds -- `ask_tfl_status_agent.py` already sets a 60s client

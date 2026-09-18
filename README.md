@@ -19,7 +19,8 @@ This project implements a simple MCP server. Its purpose is to fetch and process
   stdio or as a hosted Azure Function App — see `DEPLOYMENT.md`
 - A LangGraph agent (`tfl_status_agent/`) that answers line-status
   questions by calling the MCP tool above, exposed over the A2A protocol
-  and deployable as its own Entra-gated Container App — see `DEPLOYMENT.md`
+  with live progress streaming (reasoning, tool calls, results) and
+  deployable as its own Entra-gated Container App — see `DEPLOYMENT.md`
 
 ## Quickstart
 

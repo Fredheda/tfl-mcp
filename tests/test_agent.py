@@ -31,3 +31,12 @@ async def test_init_graph_falls_back_to_no_tools_on_mcp_failure(monkeypatch):
 
     assert holder.graph is result
     assert holder.graph is not None
+
+
+def test_build_model_uses_responses_api_with_reasoning_summaries():
+    model = agent.build_model()
+
+    assert model.model_name == "gpt-5.6-luna"
+    assert model.use_responses_api is True
+    assert model.output_version == "responses/v1"
+    assert model.reasoning == {"effort": "low", "summary": "auto"}

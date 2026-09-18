@@ -5,14 +5,22 @@ constructor and reads `.graph` at call time, rather than importing a bound
 `graph` name -- the graph is built asynchronously at FastAPI startup
 (server.py's lifespan), after this module is first imported, so a
 bound-name import would capture `None` permanently.
+
+The graph is *streamed*, not invoked: every node update is turned into
+trace lines (reasoning summaries, tool calls, tool results, "composing
+answer") and published as WORKING-state status updates before the final
+artifact, so a caller that streams sees progress while the run is still
+going. A caller that doesn't stream gets exactly the same final task.
 """
 
 from a2a.helpers import new_task_from_user_message, new_text_part
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
+from a2a.types import TaskState
 
 from tfl_status_agent.agent import GraphHolder
+from tfl_status_agent.trace import final_answer_text, trace_lines
 
 
 class TflStatusAgentExecutor(AgentExecutor):
@@ -33,11 +41,21 @@ class TflStatusAgentExecutor(AgentExecutor):
         await updater.start_work()
 
         user_input = context.get_user_input() or "What's the tube status?"
-        result = await self.graph_holder.graph.ainvoke(
+        answer = ""
+        async for update in self.graph_holder.graph.astream(
             {"messages": [{"role": "user", "content": user_input}]},
             config={"configurable": {"thread_id": context.context_id}},
-        )
-        answer = result["messages"][-1].content
+            stream_mode="updates",
+        ):
+            for kind, text in trace_lines(update):
+                # `kind` rides in metadata, not in the text, so callers can
+                # classify lines without parsing prose.
+                await updater.update_status(
+                    TaskState.TASK_STATE_WORKING,
+                    message=updater.new_agent_message([new_text_part(text)]),
+                    metadata={"kind": kind},
+                )
+            answer = final_answer_text(update) or answer
 
         await updater.add_artifact([new_text_part(answer)], name="tfl_status")
         await updater.complete()

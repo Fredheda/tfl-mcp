@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Throwaway verification script: confirms the deployed tfl-mcp Function
-App actually returns real TFL data over MCP, not just that it's "Running".
+App actually returns real TFL data over MCP for every tool, not just that
+it's "Running".
 
 Uses langchain_mcp_adapters.client.MultiServerMCPClient -- the
 ecosystem-standard MCP-to-LangChain tool-loading bridge. Requires mcp
@@ -35,9 +36,16 @@ async def main(lines: list[str]) -> None:
     )
     tools = await client.get_tools()
     print(f"Discovered tools: {[t.name for t in tools]}")
-    tool = next(t for t in tools if t.name == "get_tfl_status")
-    result = await tool.ainvoke({"lines": lines})
-    print(result)
+    calls = [
+        ("get_tfl_status", {"lines": lines}),
+        ("find_station", {"query": "waterloo"}),
+        ("get_arrivals", {"stop_id": "940GZZLUWLO"}),
+        ("plan_journey", {"origin": "940GZZLUWLO", "destination": "940GZZLUKSX"}),
+    ]
+    for name, args in calls:
+        tool = next(t for t in tools if t.name == name)
+        print(f"--- {name}")
+        print(await tool.ainvoke(args))
 
 
 if __name__ == "__main__":

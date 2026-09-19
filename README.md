@@ -11,14 +11,19 @@ This project implements a simple MCP server. Its purpose is to fetch and process
 ## Features
 - Fetches live status for London Underground, DLR, Elizabeth line, and
   Overground lines
-- Two tools: `get_tfl_status` for named lines, `get_disrupted_lines` for
-  "what's disrupted right now" without naming a line first
+- Five tools: `get_tfl_status` for named lines, `get_disrupted_lines` for
+  "what's disrupted right now" without naming a line first,
+  `find_station` (name → ids), `plan_journey` (routes that reflect live
+  disruption, leaving now, at a time, or arriving by a time) and
+  `get_arrivals` (next trains at a station)
 - Processes and formats the data as JSON
 - Example code for both script and notebook usage
 - Exposed as an MCP (Model Context Protocol) tool, runnable locally over
   stdio or as a hosted Azure Function App — see `DEPLOYMENT.md`
-- A LangGraph agent (`tfl_status_agent/`) that answers line-status
-  questions by calling the MCP tool above, exposed over the A2A protocol
+- A LangGraph agent (`tfl_status_agent/`) that answers line-status,
+  journey and arrivals questions by calling the MCP tools above (plus a
+  local `get_current_time` tool for relative times), exposed over the A2A
+  protocol
   with live progress streaming (reasoning, tool calls, results) and
   deployable as its own Entra-gated Container App — see `DEPLOYMENT.md`
 
@@ -32,10 +37,13 @@ cd tfl-mcp
 
 ## MCP Server Usage
 
-This project is a ready-to-run MCP (Model Context Protocol) server. When you run `python tfl.py`, it starts an MCP server exposing two tools:
+This project is a ready-to-run MCP (Model Context Protocol) server. When you run `python tfl.py`, it starts an MCP server exposing five tools:
 
 - `get_tfl_status(lines)` — status for one or more named line ids (e.g. `victoria`, `dlr`, `mildmay`).
 - `get_disrupted_lines(modes)` — every line currently disrupted, across tube/DLR/Overground/Elizabeth line by default, with no line names required.
+- `find_station(query, modes)` — an `id` and a `journey_id` per station for a place name; needed before the next two.
+- `plan_journey(origin, destination, preference, step_free, when, when_is)` — up to 3 journey options between two `journey_id`s from `find_station`, reflecting live disruption. `when` is local London time (`2026-09-21T09:00`); omit it to travel now.
+- `get_arrivals(stop_id, line_ids)` — the next trains arriving at a station, soonest first.
 
 Connect to the running server with:
 

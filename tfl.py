@@ -56,6 +56,29 @@ def get_disrupted_lines(modes: list[str] = tfl_status.DEFAULT_RAIL_MODES) -> str
     return tfl_status.format_status(disrupted)
 
 
+@mcp.tool()
+def find_station(query: str, modes: list[str] = tfl_status.DEFAULT_RAIL_MODES) -> str:
+    """Find TFL station ids by name.
+
+    Always use this to turn a place name the user gave into ids before
+    calling plan_journey or get_arrivals -- those tools need ids, not
+    names, because names are ambiguous (e.g. "Kings Cross" also matches
+    bus stops). Each match has an `id` (use it with get_arrivals) and a
+    `journey_id` (use it with plan_journey; a hub `id` is not accepted as
+    a journey endpoint).
+
+    Args:
+        query: Station or place name, e.g. 'kings cross', 'waterloo'.
+        modes: TFL modes to search. Defaults to 'tube', 'dlr',
+            'overground', 'elizabeth-line'. Add 'national-rail' for
+            National Rail stations.
+    """
+    data = tfl_status.search_stations(query, modes)
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_stations(data)
+
+
 if __name__ == "__main__":
     # Initialize and run the server
     mcp.run(transport="stdio")

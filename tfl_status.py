@@ -8,6 +8,7 @@ publish time -- see scripts/deploy-mcp-tools.sh).
 import json
 import logging
 from typing import Any
+from urllib.parse import urlencode
 
 import requests
 
@@ -15,6 +16,10 @@ logger = logging.getLogger(__name__)
 
 TFL_STATUS_BY_IDS = "https://api.tfl.gov.uk/Line/{ids}/Status"
 TFL_STATUS_BY_MODE = "https://api.tfl.gov.uk/Line/Mode/{modes}/Status"
+TFL_STOP_SEARCH = "https://api.tfl.gov.uk/StopPoint/Search"
+
+LOOKUP_FAILURE_MESSAGE = json.dumps({"result": "Unable to fetch data from TFL."})
+NO_STATIONS_MESSAGE = json.dumps({"result": "No matching stations found."})
 
 DEFAULT_RAIL_MODES = ["tube", "dlr", "overground", "elizabeth-line"]
 
@@ -85,3 +90,40 @@ def format_status(lines: list[dict]) -> str:
             statuses.append(entry)
         result[line["id"]] = statuses
     return json.dumps(result, indent=4)
+
+
+def search_stations(
+    query: str, modes: list[str], max_results: int = 5
+) -> dict | None:
+    """Search stations/stops by name, restricted to the given modes."""
+    params = {
+        "query": query,
+        "modes": ",".join(modes),
+        "maxResults": max_results,
+    }
+    url = f"{TFL_STOP_SEARCH}?{urlencode(params, safe=',')}"
+    return make_tfl_request(url)
+
+
+def format_stations(data: dict) -> str:
+    """Format station matches as a JSON list of ids, name and modes.
+
+    `id` is the stop id (valid for arrivals). `journey_id` is the ICS id
+    TFL's journey planner accepts -- a hub's own `id` is not a valid
+    journey endpoint -- falling back to `id` where no ICS id is given.
+    """
+    matches = data.get("matches", [])
+    if not matches:
+        return NO_STATIONS_MESSAGE
+    return json.dumps(
+        [
+            {
+                "id": m["id"],
+                "journey_id": m.get("icsId") or m["id"],
+                "name": m["name"],
+                "modes": m.get("modes", []),
+            }
+            for m in matches
+        ],
+        indent=4,
+    )

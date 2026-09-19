@@ -65,3 +65,40 @@ def get_disrupted_lines(context: str) -> str:
     if not disrupted:
         return json.dumps({"result": "No disruptions reported."})
     return tfl_status.format_status(disrupted)
+
+
+_FIND_STATION_PROPERTIES = json.dumps(
+    [
+        {
+            "propertyName": "query",
+            "propertyType": "string",
+            "description": "Station or place name to search for, e.g. 'kings cross'.",
+            "isRequired": True,
+        },
+        {
+            "propertyName": "modes",
+            "propertyType": "array",
+            "description": "TFL modes to search, e.g. 'tube', 'dlr', 'overground', 'elizabeth-line', 'national-rail'. Defaults to the four rail modes (not national-rail) if omitted.",
+            "isRequired": False,
+        },
+    ]
+)
+
+
+@app.mcp_tool_trigger(
+    arg_name="context",
+    tool_name="find_station",
+    description="Find TFL stations by name. Returns an `id` (for get_arrivals) and a `journey_id` (for plan_journey) per match. Use this before either, since they need ids rather than names.",
+    tool_properties=_FIND_STATION_PROPERTIES,
+)
+def find_station(context: str) -> str:
+    args = json.loads(context)["arguments"]
+    query = args.get("query")
+    if not query:
+        return json.dumps({"error": "query is required"})
+    modes = args.get("modes") or tfl_status.DEFAULT_RAIL_MODES
+
+    data = tfl_status.search_stations(query, modes)
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_stations(data)

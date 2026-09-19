@@ -53,3 +53,20 @@ def test_get_disrupted_lines_returns_error_message_on_fetch_failure(monkeypatch)
     monkeypatch.setattr(tfl.tfl_status, "fetch_status_for_modes", lambda modes: None)
     result = tfl.get_disrupted_lines()
     assert json.loads(result) == {"result": "Unable to fetch TFL status."}
+
+
+def test_find_station_calls_search_stations(monkeypatch):
+    def fake_search_stations(query, modes):
+        assert query == "waterloo"
+        assert modes == tfl.tfl_status.DEFAULT_RAIL_MODES
+        return {"matches": [{"id": "940GZZLUWLO", "name": "Waterloo Underground Station", "modes": ["tube"]}]}
+
+    monkeypatch.setattr(tfl.tfl_status, "search_stations", fake_search_stations)
+    result = json.loads(tfl.find_station(query="waterloo"))
+    assert result[0]["id"] == "940GZZLUWLO"
+
+
+def test_find_station_returns_error_message_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(tfl.tfl_status, "search_stations", lambda query, modes: None)
+    result = tfl.find_station(query="waterloo")
+    assert json.loads(result) == {"result": "Unable to fetch data from TFL."}

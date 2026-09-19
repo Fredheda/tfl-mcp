@@ -1,4 +1,5 @@
 import json
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -131,3 +132,61 @@ def test_format_status_includes_nonempty_affected_stops():
     }]
     result = json.loads(tfl_status.format_status(lines))
     assert result["mildmay"][0]["affectedStops"] == [{"id": "940GZZLUHAI"}]
+
+
+def test_search_stations_builds_query_and_mode_params(monkeypatch):
+    seen_urls = []
+
+    def fake_make_tfl_request(url):
+        seen_urls.append(url)
+        return {"matches": []}
+
+    monkeypatch.setattr(tfl_status, "make_tfl_request", fake_make_tfl_request)
+    tfl_status.search_stations("kings cross", ["tube", "dlr"], max_results=3)
+    parsed = urlparse(seen_urls[0])
+    assert parsed.path == "/StopPoint/Search"
+    assert parse_qs(parsed.query) == {
+        "query": ["kings cross"],
+        "modes": ["tube,dlr"],
+        "maxResults": ["3"],
+    }
+
+
+def test_search_stations_returns_none_on_failure(monkeypatch):
+    monkeypatch.setattr(tfl_status, "make_tfl_request", lambda url: None)
+    assert tfl_status.search_stations("waterloo", ["tube"]) is None
+
+
+def test_format_stations_lists_ids_name_and_modes_only():
+    data = {
+        "matches": [
+            {
+                "id": "HUBKGX",
+                "icsId": "1000129",
+                "name": "King's Cross & St Pancras International",
+                "modes": ["tube", "national-rail"],
+                "lat": 51.53,
+                "lon": -0.12,
+            }
+        ]
+    }
+    result = json.loads(tfl_status.format_stations(data))
+    assert result == [
+        {
+            "id": "HUBKGX",
+            "journey_id": "1000129",
+            "name": "King's Cross & St Pancras International",
+            "modes": ["tube", "national-rail"],
+        }
+    ]
+
+
+def test_format_stations_journey_id_falls_back_to_id_without_ics_id():
+    data = {"matches": [{"id": "940GZZLUWLO", "name": "Waterloo Underground Station", "modes": ["tube"]}]}
+    result = json.loads(tfl_status.format_stations(data))
+    assert result[0]["journey_id"] == "940GZZLUWLO"
+
+
+def test_format_stations_reports_no_matches():
+    result = json.loads(tfl_status.format_stations({"matches": []}))
+    assert result == {"result": "No matching stations found."}

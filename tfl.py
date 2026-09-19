@@ -94,6 +94,43 @@ def get_arrivals(stop_id: str, line_ids: list[str] | None = None) -> str:
     return tfl_status.format_arrivals(data, line_ids)
 
 
+@mcp.tool()
+def plan_journey(
+    origin: str,
+    destination: str,
+    preference: str = "leasttime",
+    step_free: bool = False,
+    when: str | None = None,
+    when_is: str = "departing",
+) -> str:
+    """Plan a journey between two London stations, reflecting live disruption.
+
+    Returns up to 3 options with departure/arrival times, duration and
+    per-leg detail, including any disruption affecting a leg. TFL's
+    planner routes around live disruption, so the fastest option already
+    accounts for it.
+
+    Args:
+        origin: `journey_id` from find_station (or 'lat,lon'). Not a name.
+        destination: `journey_id` from find_station (or 'lat,lon'). Not a name.
+        preference: 'leasttime' (default), 'leastinterchange' or 'leastwalking'.
+        step_free: True for step-free routes only.
+        when: Local London time, ISO format without UTC offset, e.g.
+            '2026-09-21T09:00'. Omit to travel now.
+        when_is: 'departing' (default) to leave at `when`, or 'arriving'
+            to arrive by `when`.
+    """
+    try:
+        data = tfl_status.fetch_journey(
+            origin, destination, preference, step_free, when, when_is
+        )
+    except ValueError as e:
+        return json.dumps({"result": str(e)})
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_journeys(data)
+
+
 if __name__ == "__main__":
     # Initialize and run the server
     mcp.run(transport="stdio")

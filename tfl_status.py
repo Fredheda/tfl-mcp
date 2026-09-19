@@ -7,8 +7,9 @@ publish time -- see scripts/deploy-mcp-tools.sh).
 
 import json
 import logging
+from datetime import datetime
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import requests
 
@@ -22,6 +23,25 @@ TFL_STOP_POINT = "https://api.tfl.gov.uk/StopPoint/{stop_id}"
 
 ARRIVALS_LIMIT = 8
 NO_ARRIVALS_MESSAGE = json.dumps({"result": "No upcoming arrivals."})
+
+TFL_JOURNEY = "https://api.tfl.gov.uk/Journey/JourneyResults/{origin}/to/{destination}"
+
+JOURNEY_LIMIT = 3
+LEG_DISRUPTIONS_LIMIT = 2
+DISRUPTION_TEXT_LIMIT = 300
+JOURNEY_PREFERENCES = {
+    "leasttime": "LeastTime",
+    "leastinterchange": "LeastInterchange",
+    "leastwalking": "LeastWalking",
+}
+STEP_FREE_PREFERENCE = "StepFreeToVehicle,StepFreeToPlatform"
+JOURNEY_TIME_IS = {"departing": "Departing", "arriving": "Arriving"}
+AMBIGUOUS_JOURNEY_MESSAGE = json.dumps(
+    {
+        "result": "Could not route between those locations. Use find_station "
+        "to get the journey_id for both, then call plan_journey again with those."
+    }
+)
 
 LOOKUP_FAILURE_MESSAGE = json.dumps({"result": "Unable to fetch data from TFL."})
 NO_STATIONS_MESSAGE = json.dumps({"result": "No matching stations found."})
@@ -200,3 +220,114 @@ def format_arrivals(
         ],
         indent=4,
     )
+
+
+def journey_params(
+    preference: str, step_free: bool, when: str | None, when_is: str
+) -> dict[str, str]:
+    """Build TFL journey query params, raising ValueError on bad input.
+
+    `when` is naive London local time (ISO, no UTC offset), which is what
+    TFL's date/time params mean; an offset is rejected rather than
+    converted so this module needs no timezone database.
+    """
+    preference = preference.lower()
+    when_is = when_is.lower()
+    if preference not in JOURNEY_PREFERENCES:
+        raise ValueError(f"preference must be one of: {', '.join(JOURNEY_PREFERENCES)}")
+    if when_is not in JOURNEY_TIME_IS:
+        raise ValueError(f"when_is must be one of: {', '.join(JOURNEY_TIME_IS)}")
+
+    params = {"journeyPreference": JOURNEY_PREFERENCES[preference]}
+    if step_free:
+        params["accessibilityPreference"] = STEP_FREE_PREFERENCE
+    if when:
+        try:
+            parsed = datetime.fromisoformat(when)
+        except ValueError:
+            raise ValueError(
+                "when must be an ISO local London time like 2026-09-21T09:00"
+            ) from None
+        if parsed.tzinfo is not None:
+            raise ValueError(
+                "when must be local London time without a UTC offset, "
+                "like 2026-09-21T09:00"
+            )
+        params["date"] = parsed.strftime("%Y%m%d")
+        params["time"] = parsed.strftime("%H%M")
+        params["timeIs"] = JOURNEY_TIME_IS[when_is]
+    return params
+
+
+def fetch_journey(
+    origin: str,
+    destination: str,
+    preference: str = "leasttime",
+    step_free: bool = False,
+    when: str | None = None,
+    when_is: str = "departing",
+) -> dict | None:
+    """Fetch journey options between two journey ids or 'lat,lon' points.
+
+    Raises ValueError for bad preference/when input; returns None if the
+    TFL request itself fails. A free-text place name makes TFL answer with
+    a disambiguation list instead of journeys -- see format_journeys.
+    """
+    params = journey_params(preference, step_free, when, when_is)
+    url = TFL_JOURNEY.format(
+        origin=quote(origin, safe=","), destination=quote(destination, safe=",")
+    )
+    return make_tfl_request(f"{url}?{urlencode(params, safe=',')}")
+
+
+def _shorten(text: str, limit: int = DISRUPTION_TEXT_LIMIT) -> str:
+    """Truncate text to `limit` characters, ending in an ellipsis if cut."""
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
+
+
+def format_journeys(data: dict, limit: int = JOURNEY_LIMIT) -> str:
+    """Summarise journey options: times, duration and per-leg detail.
+
+    TFL's raw response is very large, so keep only what an answer needs.
+    Leg disruption text is passed through because TFL routes around live
+    disruption and reports what affects each leg. Long notices are
+    truncated and each leg is capped, since TFL attaches lengthy,
+    sometimes unrelated diversion notices.
+    """
+    journeys = data.get("journeys")
+    if not journeys:
+        return AMBIGUOUS_JOURNEY_MESSAGE
+
+    result = []
+    for journey in journeys[:limit]:
+        legs = []
+        for leg in journey.get("legs", []):
+            entry = {
+                "mode": leg.get("mode", {}).get("id"),
+                "from": leg.get("departurePoint", {}).get("commonName"),
+                "to": leg.get("arrivalPoint", {}).get("commonName"),
+                "minutes": leg.get("duration"),
+            }
+            line = (leg.get("routeOptions") or [{}])[0].get("name")
+            if line:
+                entry["line"] = line
+            texts: list[str] = []
+            for disruption in leg.get("disruptions", []):
+                text = disruption.get("description")
+                if text and text not in texts:
+                    texts.append(text)
+            disruptions = [_shorten(t) for t in texts[:LEG_DISRUPTIONS_LIMIT]]
+            if disruptions:
+                entry["disruptions"] = disruptions
+            legs.append(entry)
+        result.append(
+            {
+                "minutes": journey.get("duration"),
+                "depart": journey.get("startDateTime"),
+                "arrive": journey.get("arrivalDateTime"),
+                "legs": legs,
+            }
+        )
+    return json.dumps(result, indent=4)

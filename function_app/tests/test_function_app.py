@@ -89,3 +89,66 @@ def test_get_arrivals_returns_error_message_on_fetch_failure(monkeypatch):
     context = json.dumps({"arguments": {"stop_id": "940GZZLUWLO"}})
     result = function_app.get_arrivals(context=context)
     assert json.loads(result) == {"result": "Unable to fetch data from TFL."}
+
+
+def test_plan_journey_returns_formatted_json(monkeypatch):
+    def fake_fetch_journey(origin, destination, preference, step_free, when, when_is):
+        assert (origin, destination) == ("940GZZLUWLO", "1000129")
+        assert preference == "leasttime"
+        assert step_free is False
+        assert when is None
+        assert when_is == "departing"
+        return {"journeys": [{"startDateTime": "s", "arrivalDateTime": "a", "duration": 14, "legs": []}]}
+
+    monkeypatch.setattr(function_app.tfl_status, "fetch_journey", fake_fetch_journey)
+    context = json.dumps({"arguments": {"origin": "940GZZLUWLO", "destination": "1000129"}})
+    result = json.loads(function_app.plan_journey(context=context))
+    assert result[0]["minutes"] == 14
+
+
+def test_plan_journey_passes_optional_arguments(monkeypatch):
+    seen = {}
+
+    def fake_fetch_journey(origin, destination, preference, step_free, when, when_is):
+        seen.update(preference=preference, step_free=step_free, when=when, when_is=when_is)
+        return {"journeys": []}
+
+    monkeypatch.setattr(function_app.tfl_status, "fetch_journey", fake_fetch_journey)
+    context = json.dumps(
+        {
+            "arguments": {
+                "origin": "a",
+                "destination": "b",
+                "preference": "leastwalking",
+                "step_free": True,
+                "when": "2026-09-21T09:00",
+                "when_is": "arriving",
+            }
+        }
+    )
+    function_app.plan_journey(context=context)
+    assert seen == {
+        "preference": "leastwalking",
+        "step_free": True,
+        "when": "2026-09-21T09:00",
+        "when_is": "arriving",
+    }
+
+
+def test_plan_journey_missing_origin_or_destination_returns_error():
+    context = json.dumps({"arguments": {"origin": "a"}})
+    result = function_app.plan_journey(context=context)
+    assert json.loads(result) == {"error": "origin and destination are required"}
+
+
+def test_plan_journey_reports_bad_when_as_a_result():
+    context = json.dumps({"arguments": {"origin": "a", "destination": "b", "when": "tomorrow"}})
+    result = json.loads(function_app.plan_journey(context=context))
+    assert "ISO local London time" in result["result"]
+
+
+def test_plan_journey_returns_error_message_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(function_app.tfl_status, "fetch_journey", lambda *args, **kwargs: None)
+    context = json.dumps({"arguments": {"origin": "a", "destination": "b"}})
+    result = function_app.plan_journey(context=context)
+    assert json.loads(result) == {"result": "Unable to fetch data from TFL."}

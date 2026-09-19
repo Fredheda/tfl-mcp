@@ -70,3 +70,22 @@ def test_find_station_returns_error_message_on_fetch_failure(monkeypatch):
     monkeypatch.setattr(tfl.tfl_status, "search_stations", lambda query, modes: None)
     result = tfl.find_station(query="waterloo")
     assert json.loads(result) == {"result": "Unable to fetch data from TFL."}
+
+
+def test_get_arrivals_passes_stop_id_and_line_filter(monkeypatch):
+    def fake_fetch_arrivals(stop_id):
+        assert stop_id == "940GZZLUWLO"
+        return [
+            {"lineId": "bakerloo", "lineName": "Bakerloo", "platformName": "P1", "destinationName": "Harrow", "timeToStation": 120},
+            {"lineId": "northern", "lineName": "Northern", "platformName": "P2", "destinationName": "Edgware", "timeToStation": 60},
+        ]
+
+    monkeypatch.setattr(tfl.tfl_status, "fetch_arrivals", fake_fetch_arrivals)
+    result = json.loads(tfl.get_arrivals(stop_id="940GZZLUWLO", line_ids=["bakerloo"]))
+    assert [a["line"] for a in result] == ["Bakerloo"]
+
+
+def test_get_arrivals_returns_error_message_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(tfl.tfl_status, "fetch_arrivals", lambda stop_id: None)
+    result = tfl.get_arrivals(stop_id="940GZZLUWLO")
+    assert json.loads(result) == {"result": "Unable to fetch data from TFL."}

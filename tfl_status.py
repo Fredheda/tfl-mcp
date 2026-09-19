@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 TFL_STATUS_BY_IDS = "https://api.tfl.gov.uk/Line/{ids}/Status"
 TFL_STATUS_BY_MODE = "https://api.tfl.gov.uk/Line/Mode/{modes}/Status"
 TFL_STOP_SEARCH = "https://api.tfl.gov.uk/StopPoint/Search"
+TFL_ARRIVALS = "https://api.tfl.gov.uk/StopPoint/{stop_id}/Arrivals"
+TFL_STOP_POINT = "https://api.tfl.gov.uk/StopPoint/{stop_id}"
+
+ARRIVALS_LIMIT = 8
+NO_ARRIVALS_MESSAGE = json.dumps({"result": "No upcoming arrivals."})
 
 LOOKUP_FAILURE_MESSAGE = json.dumps({"result": "Unable to fetch data from TFL."})
 NO_STATIONS_MESSAGE = json.dumps({"result": "No matching stations found."})
@@ -124,6 +129,74 @@ def format_stations(data: dict) -> str:
                 "modes": m.get("modes", []),
             }
             for m in matches
+        ],
+        indent=4,
+    )
+
+
+def resolve_arrival_stops(stop_id: str) -> list[str] | None:
+    """Stop ids that carry live predictions for a station id.
+
+    A hub id (HUB...) has no predictions of its own -- only its child
+    stops do -- so expand it to the children served by a TFL rail mode
+    (National Rail-only and bus children have no TFL predictions worth
+    fetching). Any other id is returned as-is. None on request failure.
+    """
+    if not stop_id.startswith("HUB"):
+        return [stop_id]
+    hub = make_tfl_request(TFL_STOP_POINT.format(stop_id=stop_id))
+    if hub is None:
+        return None
+    return [
+        child["id"]
+        for child in hub.get("children", [])
+        if set(child.get("modes", [])) & set(DEFAULT_RAIL_MODES)
+    ]
+
+
+def fetch_arrivals(stop_id: str) -> list[dict] | None:
+    """Fetch every predicted arrival at a station (unsorted, all lines).
+
+    Accepts a hub id as well as a plain stop id; a hub is expanded to its
+    child stops and their arrivals merged. None if any request fails.
+    """
+    stop_ids = resolve_arrival_stops(stop_id)
+    if stop_ids is None:
+        return None
+    arrivals: list[dict] = []
+    for child_id in stop_ids:
+        data = make_tfl_request(TFL_ARRIVALS.format(stop_id=child_id))
+        if data is None:
+            return None
+        arrivals.extend(data)
+    return arrivals
+
+
+def format_arrivals(
+    arrivals: list[dict],
+    line_ids: list[str] | None = None,
+    limit: int = ARRIVALS_LIMIT,
+) -> str:
+    """Format the next arrivals, soonest first, optionally for given lines.
+
+    TFL returns every prediction at the stop in arbitrary order, so this
+    filters, sorts by time to station and truncates to keep the reply small.
+    """
+    if line_ids:
+        wanted = {line_id.lower() for line_id in line_ids}
+        arrivals = [a for a in arrivals if a.get("lineId") in wanted]
+    upcoming = sorted(arrivals, key=lambda a: a.get("timeToStation", 0))[:limit]
+    if not upcoming:
+        return NO_ARRIVALS_MESSAGE
+    return json.dumps(
+        [
+            {
+                "line": a.get("lineName"),
+                "platform": a.get("platformName"),
+                "destination": a.get("destinationName"),
+                "minutes": round(a.get("timeToStation", 0) / 60),
+            }
+            for a in upcoming
         ],
         indent=4,
     )

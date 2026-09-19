@@ -65,3 +65,27 @@ def test_find_station_returns_error_message_on_fetch_failure(monkeypatch):
     context = json.dumps({"arguments": {"query": "waterloo"}})
     result = function_app.find_station(context=context)
     assert json.loads(result) == {"result": "Unable to fetch data from TFL."}
+
+
+def test_get_arrivals_returns_formatted_json(monkeypatch):
+    def fake_fetch_arrivals(stop_id):
+        assert stop_id == "940GZZLUWLO"
+        return [{"lineId": "bakerloo", "lineName": "Bakerloo", "platformName": "P1", "destinationName": "Harrow", "timeToStation": 120}]
+
+    monkeypatch.setattr(function_app.tfl_status, "fetch_arrivals", fake_fetch_arrivals)
+    context = json.dumps({"arguments": {"stop_id": "940GZZLUWLO"}})
+    result = json.loads(function_app.get_arrivals(context=context))
+    assert result[0]["minutes"] == 2
+
+
+def test_get_arrivals_missing_stop_id_returns_error():
+    context = json.dumps({"arguments": {}})
+    result = function_app.get_arrivals(context=context)
+    assert json.loads(result) == {"error": "stop_id is required"}
+
+
+def test_get_arrivals_returns_error_message_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(function_app.tfl_status, "fetch_arrivals", lambda stop_id: None)
+    context = json.dumps({"arguments": {"stop_id": "940GZZLUWLO"}})
+    result = function_app.get_arrivals(context=context)
+    assert json.loads(result) == {"result": "Unable to fetch data from TFL."}

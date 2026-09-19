@@ -190,3 +190,112 @@ def test_format_stations_journey_id_falls_back_to_id_without_ics_id():
 def test_format_stations_reports_no_matches():
     result = json.loads(tfl_status.format_stations({"matches": []}))
     assert result == {"result": "No matching stations found."}
+
+
+def _arrival(line_id, line_name, seconds, platform="Platform 1", destination="Somewhere"):
+    return {
+        "lineId": line_id,
+        "lineName": line_name,
+        "platformName": platform,
+        "destinationName": destination,
+        "timeToStation": seconds,
+    }
+
+
+def test_fetch_arrivals_requests_the_stop_arrivals_endpoint(monkeypatch):
+    seen_urls = []
+
+    def fake_make_tfl_request(url):
+        seen_urls.append(url)
+        return []
+
+    monkeypatch.setattr(tfl_status, "make_tfl_request", fake_make_tfl_request)
+    tfl_status.fetch_arrivals("940GZZLUWLO")
+    assert seen_urls == ["https://api.tfl.gov.uk/StopPoint/940GZZLUWLO/Arrivals"]
+
+
+def test_fetch_arrivals_returns_none_on_failure(monkeypatch):
+    monkeypatch.setattr(tfl_status, "make_tfl_request", lambda url: None)
+    assert tfl_status.fetch_arrivals("940GZZLUWLO") is None
+
+
+def test_fetch_arrivals_expands_a_hub_to_its_tfl_rail_children(monkeypatch):
+    seen_urls = []
+    hub = {
+        "id": "HUBKGX",
+        "children": [
+            {"id": "490G00005909", "modes": ["bus"]},
+            {"id": "910GKNGX", "modes": ["national-rail"]},
+            {"id": "940GZZLUKSX", "modes": ["tube"]},
+            {"id": "910GHGHI", "modes": ["overground", "national-rail"]},
+        ],
+    }
+
+    def fake_make_tfl_request(url):
+        seen_urls.append(url)
+        if url.endswith("/StopPoint/HUBKGX"):
+            return hub
+        return [{"lineId": "victoria", "timeToStation": 60}]
+
+    monkeypatch.setattr(tfl_status, "make_tfl_request", fake_make_tfl_request)
+    result = tfl_status.fetch_arrivals("HUBKGX")
+    assert seen_urls == [
+        "https://api.tfl.gov.uk/StopPoint/HUBKGX",
+        "https://api.tfl.gov.uk/StopPoint/940GZZLUKSX/Arrivals",
+        "https://api.tfl.gov.uk/StopPoint/910GHGHI/Arrivals",
+    ]
+    assert len(result) == 2
+
+
+def test_fetch_arrivals_returns_none_when_hub_lookup_fails(monkeypatch):
+    monkeypatch.setattr(tfl_status, "make_tfl_request", lambda url: None)
+    assert tfl_status.fetch_arrivals("HUBKGX") is None
+
+
+def test_fetch_arrivals_returns_none_when_a_child_lookup_fails(monkeypatch):
+    def fake_make_tfl_request(url):
+        if url.endswith("/StopPoint/HUBKGX"):
+            return {"id": "HUBKGX", "children": [{"id": "940GZZLUKSX", "modes": ["tube"]}]}
+        return None
+
+    monkeypatch.setattr(tfl_status, "make_tfl_request", fake_make_tfl_request)
+    assert tfl_status.fetch_arrivals("HUBKGX") is None
+
+
+def test_fetch_arrivals_returns_empty_for_a_hub_without_tfl_rail_children(monkeypatch):
+    hub = {"id": "HUBXXX", "children": [{"id": "910GXXXX", "modes": ["national-rail"]}]}
+    monkeypatch.setattr(tfl_status, "make_tfl_request", lambda url: hub)
+    assert tfl_status.fetch_arrivals("HUBXXX") == []
+
+
+def test_format_arrivals_sorts_soonest_first_and_converts_to_minutes():
+    arrivals = [
+        _arrival("northern", "Northern", 600, destination="Edgware"),
+        _arrival("bakerloo", "Bakerloo", 120, destination="Harrow & Wealdstone"),
+    ]
+    result = json.loads(tfl_status.format_arrivals(arrivals))
+    assert [a["line"] for a in result] == ["Bakerloo", "Northern"]
+    assert result[0] == {
+        "line": "Bakerloo",
+        "platform": "Platform 1",
+        "destination": "Harrow & Wealdstone",
+        "minutes": 2,
+    }
+
+
+def test_format_arrivals_filters_by_line_ids():
+    arrivals = [_arrival("northern", "Northern", 60), _arrival("bakerloo", "Bakerloo", 120)]
+    result = json.loads(tfl_status.format_arrivals(arrivals, line_ids=["Bakerloo"]))
+    assert [a["line"] for a in result] == ["Bakerloo"]
+
+
+def test_format_arrivals_applies_limit():
+    arrivals = [_arrival("northern", "Northern", s) for s in range(60, 60 * 20, 60)]
+    result = json.loads(tfl_status.format_arrivals(arrivals, limit=3))
+    assert len(result) == 3
+
+
+def test_format_arrivals_reports_none_when_empty_or_filtered_out():
+    assert json.loads(tfl_status.format_arrivals([])) == {"result": "No upcoming arrivals."}
+    filtered = tfl_status.format_arrivals([_arrival("northern", "Northern", 60)], line_ids=["jubilee"])
+    assert json.loads(filtered) == {"result": "No upcoming arrivals."}

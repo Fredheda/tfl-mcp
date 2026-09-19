@@ -102,3 +102,39 @@ def find_station(context: str) -> str:
     if data is None:
         return tfl_status.LOOKUP_FAILURE_MESSAGE
     return tfl_status.format_stations(data)
+
+
+_GET_ARRIVALS_PROPERTIES = json.dumps(
+    [
+        {
+            "propertyName": "stop_id",
+            "propertyType": "string",
+            "description": "Station `id` from find_station, e.g. '940GZZLUWLO'.",
+            "isRequired": True,
+        },
+        {
+            "propertyName": "line_ids",
+            "propertyType": "array",
+            "description": "Optional TFL line ids to restrict to, e.g. 'victoria'. Omit to see every line at the station.",
+            "isRequired": False,
+        },
+    ]
+)
+
+
+@app.mcp_tool_trigger(
+    arg_name="context",
+    tool_name="get_arrivals",
+    description="Get the next trains arriving at a station, soonest first.",
+    tool_properties=_GET_ARRIVALS_PROPERTIES,
+)
+def get_arrivals(context: str) -> str:
+    args = json.loads(context)["arguments"]
+    stop_id = args.get("stop_id")
+    if not stop_id:
+        return json.dumps({"error": "stop_id is required"})
+
+    data = tfl_status.fetch_arrivals(stop_id)
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_arrivals(data, args.get("line_ids"))

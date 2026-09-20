@@ -17,7 +17,6 @@ This project implements an MCP server. Its purpose is to fetch and process real-
   disruption, leaving now, at a time, or arriving by a time) and
   `get_arrivals` (next trains at a station)
 - Processes and formats the data as JSON
-- Example code for both script and notebook usage
 - Exposed as an MCP (Model Context Protocol) tool, runnable locally over
   stdio or as a hosted Azure Function App — see `DEPLOYMENT.md`
 - A LangGraph agent (`tfl_status_agent/`) that answers line-status,

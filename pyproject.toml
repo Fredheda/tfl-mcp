@@ -1,7 +1,7 @@
 [project]
 name = "tfl-mcp"
 version = "0.1.0"
-description = "TFL line status MCP server."
+description = "TFL MCP server: line status, journey planning and arrivals."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [

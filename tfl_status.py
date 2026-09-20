@@ -1,4 +1,4 @@
-"""Pure TFL line-status fetching/formatting logic.
+"""Pure TFL fetching/formatting logic: line status, stations, arrivals, journeys.
 
 Shared by the stdio MCP server (tfl.py) and the Azure Function App
 (function_app/function_app.py, which gets its own copy of this file at

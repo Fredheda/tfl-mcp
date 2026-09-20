@@ -1,8 +1,8 @@
-# TFL Line Status API (with MCP)
+# TFL API (with MCP)
 
-Welcome to the TFL Line Status API project! 🚇
+Welcome to the TFL API project! 🚇
 
-This project implements a simple MCP server. Its purpose is to fetch and processes real-time status information for London Underground lines using the official TFL API.
+This project implements an MCP server. Its purpose is to fetch and process real-time London transport data from the official TFL API: line status, station lookup, journey planning that reflects live disruption, and next-train arrivals.
 
 
 <div align="center">

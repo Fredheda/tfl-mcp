@@ -11,7 +11,7 @@ Access control: the Function App's MCP extension system key
 (`webhookAuthorizationLevel: "System"` in `function_app/host.json`) -- a
 public URL, but every MCP call needs this key. Not network isolation (Flex
 Consumption has no internal-ingress equivalent); acceptable here because
-TFL line status isn't sensitive data.
+the TFL data it serves (line status, journeys, arrivals) is public, not sensitive.
 
 ## Deploy
 

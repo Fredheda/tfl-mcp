@@ -1,4 +1,4 @@
-"""LangGraph agent that answers TFL line-status questions, served over A2A.
+"""LangGraph agent that answers TFL status, journey and arrivals questions, served over A2A.
 
 Unlike a graph built from hand-defined tools, this one has a real tool
 loaded live from the tfl-mcp Function App over MCP, so building the graph
@@ -14,6 +14,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 
 from tfl_status_agent.mcp_client import load_mcp_tools
+from tfl_status_agent.tools import get_current_time
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ class GraphHolder:
                 "Failed to load MCP tools at startup; starting with no tools"
             )
             tools = []
+        tools = [get_current_time, *tools]
         self.graph = create_agent(
             model=build_model(),
             tools=tools,

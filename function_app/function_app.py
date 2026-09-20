@@ -65,3 +65,147 @@ def get_disrupted_lines(context: str) -> str:
     if not disrupted:
         return json.dumps({"result": "No disruptions reported."})
     return tfl_status.format_status(disrupted)
+
+
+_FIND_STATION_PROPERTIES = json.dumps(
+    [
+        {
+            "propertyName": "query",
+            "propertyType": "string",
+            "description": "Station or place name to search for, e.g. 'kings cross'.",
+            "isRequired": True,
+        },
+        {
+            "propertyName": "modes",
+            "propertyType": "array",
+            "description": "TFL modes to search, e.g. 'tube', 'dlr', 'overground', 'elizabeth-line', 'national-rail'. Defaults to the four rail modes (not national-rail) if omitted.",
+            "isRequired": False,
+        },
+    ]
+)
+
+
+@app.mcp_tool_trigger(
+    arg_name="context",
+    tool_name="find_station",
+    description="Find TFL stations by name. Returns an `id` (for get_arrivals) and a `journey_id` (for plan_journey) per match. Use this before either, since they need ids rather than names.",
+    tool_properties=_FIND_STATION_PROPERTIES,
+)
+def find_station(context: str) -> str:
+    args = json.loads(context)["arguments"]
+    query = args.get("query")
+    if not query:
+        return json.dumps({"error": "query is required"})
+    modes = args.get("modes") or tfl_status.DEFAULT_RAIL_MODES
+
+    data = tfl_status.search_stations(query, modes)
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_stations(data)
+
+
+_GET_ARRIVALS_PROPERTIES = json.dumps(
+    [
+        {
+            "propertyName": "stop_id",
+            "propertyType": "string",
+            "description": "Station `id` from find_station, e.g. '940GZZLUWLO'.",
+            "isRequired": True,
+        },
+        {
+            "propertyName": "line_ids",
+            "propertyType": "array",
+            "description": "Optional TFL line ids to restrict to, e.g. 'victoria'. Omit to see every line at the station.",
+            "isRequired": False,
+        },
+    ]
+)
+
+
+@app.mcp_tool_trigger(
+    arg_name="context",
+    tool_name="get_arrivals",
+    description="Get the next trains arriving at a station, soonest first.",
+    tool_properties=_GET_ARRIVALS_PROPERTIES,
+)
+def get_arrivals(context: str) -> str:
+    args = json.loads(context)["arguments"]
+    stop_id = args.get("stop_id")
+    if not stop_id:
+        return json.dumps({"error": "stop_id is required"})
+
+    data = tfl_status.fetch_arrivals(stop_id)
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_arrivals(data, args.get("line_ids"))
+
+
+_PLAN_JOURNEY_PROPERTIES = json.dumps(
+    [
+        {
+            "propertyName": "origin",
+            "propertyType": "string",
+            "description": "Start `journey_id` from find_station (or 'lat,lon'). Not a place name.",
+            "isRequired": True,
+        },
+        {
+            "propertyName": "destination",
+            "propertyType": "string",
+            "description": "End `journey_id` from find_station (or 'lat,lon'). Not a place name.",
+            "isRequired": True,
+        },
+        {
+            "propertyName": "preference",
+            "propertyType": "string",
+            "description": "'leasttime' (default), 'leastinterchange' or 'leastwalking'.",
+            "isRequired": False,
+        },
+        {
+            "propertyName": "step_free",
+            "propertyType": "boolean",
+            "description": "True for step-free routes only. Defaults to false.",
+            "isRequired": False,
+        },
+        {
+            "propertyName": "when",
+            "propertyType": "string",
+            "description": "Local London time in ISO format without a UTC offset, e.g. '2026-09-21T09:00'. Omit to travel now.",
+            "isRequired": False,
+        },
+        {
+            "propertyName": "when_is",
+            "propertyType": "string",
+            "description": "'departing' (default) to leave at `when`, or 'arriving' to arrive by `when`.",
+            "isRequired": False,
+        },
+    ]
+)
+
+
+@app.mcp_tool_trigger(
+    arg_name="context",
+    tool_name="plan_journey",
+    description="Plan a journey between two London stations, reflecting live disruption. Needs `journey_id` values from find_station. Returns up to 3 options.",
+    tool_properties=_PLAN_JOURNEY_PROPERTIES,
+)
+def plan_journey(context: str) -> str:
+    args = json.loads(context)["arguments"]
+    origin = args.get("origin")
+    destination = args.get("destination")
+    if not origin or not destination:
+        return json.dumps({"error": "origin and destination are required"})
+
+    try:
+        data = tfl_status.fetch_journey(
+            origin,
+            destination,
+            args.get("preference") or "leasttime",
+            bool(args.get("step_free")),
+            args.get("when") or None,
+            args.get("when_is") or "departing",
+        )
+    except ValueError as e:
+        return json.dumps({"result": str(e)})
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_journeys(data)

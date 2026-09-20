@@ -11,7 +11,7 @@ Access control: the Function App's MCP extension system key
 (`webhookAuthorizationLevel: "System"` in `function_app/host.json`) -- a
 public URL, but every MCP call needs this key. Not network isolation (Flex
 Consumption has no internal-ingress equivalent); acceptable here because
-TFL line status isn't sensitive data.
+the TFL data it serves (line status, journeys, arrivals) is public, not sensitive.
 
 ## Deploy
 
@@ -46,7 +46,13 @@ Code (whenever `tfl_status.py` or `function_app/function_app.py` changes):
 poetry run python scripts/verify_deployed_mcp.py victoria
 ```
 Confirms a live TFL line-status call round-trips through the deployed
-Function App, not just that it shows "Running". Uses
+Function App, not just that it shows "Running". It calls `get_tfl_status`
+and the three journey tools once each (`find_station`, `get_arrivals`,
+`plan_journey`), so a tool missing from the deployed Function App shows
+up as a `StopIteration` here. After adding or changing tools, run
+`scripts/deploy-mcp-tools.sh` first, then `scripts/ship.sh` for the agent:
+the agent fetches tool schemas live at startup, and its system prompt is
+baked into the image. Uses
 `langchain_mcp_adapters.client.MultiServerMCPClient`. This repo pins
 `mcp[cli]<2.0.0` specifically so this works: `langchain-mcp-adapters`'s
 latest release (`0.3.2`) hard-pins `mcp<2.0.0` and has no release
@@ -58,8 +64,9 @@ ecosystem-standard bridge. Reverted to v1 deliberately.
 ## tfl-status agent (`tfl_status_agent/`)
 
 A second, independent deployable in this repo: a LangGraph agent that
-answers TFL line-status questions by calling the Function App above as an
-MCP tool, exposed over the A2A protocol. Runs as its own Azure resource,
+answers TFL line-status, journey and arrivals questions by calling the
+Function App above's MCP tools (plus a local `get_current_time` tool),
+exposed over the A2A protocol. Runs as its own Azure resource,
 `ca-tfl-status-agent`, in its own Container Apps environment
 (`cae-tfl-status`) -- external ingress, since it must be reachable from
 multiple independent callers each in their own environment (internal
@@ -129,3 +136,8 @@ curl -i https://<tfl-status-agent-fqdn>/.well-known/agent-card.json
 ```
 Expect `401` unauthenticated. With a valid, approved caller's token in the
 `Authorization: Bearer` header, expect `200` with the agent card.
+
+Also try: "fastest way from Waterloo to King's Cross right now", "next
+Victoria line trains at Oxford Circus", and "Waterloo to King's Cross,
+arriving by 9am tomorrow" (this one exercises `get_current_time` and the
+image's `tzdata`).

@@ -38,8 +38,8 @@ PUBLIC_URL = os.getenv("TFL_STATUS_AGENT_PUBLIC_URL", "http://localhost:8002")
 RPC_PATH = "/a2a"
 
 agent_card = AgentCard(
-    name="TFL Status Agent",
-    description="Reports live status for London Underground and DLR lines.",
+    name="TFL Agent",
+    description="Live London rail status, journey planning (respecting disruption) and next arrivals for London Underground, DLR, Overground and the Elizabeth line.",
     supported_interfaces=[
         AgentInterface(protocol_binding="JSONRPC", url=f"{PUBLIC_URL}{RPC_PATH}")
     ],
@@ -53,7 +53,19 @@ agent_card = AgentCard(
             name="Get TFL line status",
             description="Reports current status for one or more London Underground/DLR lines.",
             tags=["tfl", "transport", "london-underground"],
-        )
+        ),
+        AgentSkill(
+            id="tfl_journey_planning",
+            name="Plan a journey",
+            description="Finds routes between two London stations that reflect live disruption, leaving now, at a set time, or arriving by a set time.",
+            tags=["tfl", "transport", "journey-planning"],
+        ),
+        AgentSkill(
+            id="tfl_arrivals",
+            name="Live arrivals",
+            description="Lists the next trains arriving at a London station.",
+            tags=["tfl", "transport", "arrivals"],
+        ),
     ],
 )
 
@@ -72,7 +84,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="TFL Status A2A Agent", lifespan=lifespan)
+app = FastAPI(title="TFL A2A Agent", lifespan=lifespan)
 add_a2a_routes_to_fastapi(
     app,
     agent_card_routes=create_agent_card_routes(agent_card=agent_card),

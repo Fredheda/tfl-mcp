@@ -56,6 +56,81 @@ def get_disrupted_lines(modes: list[str] = tfl_status.DEFAULT_RAIL_MODES) -> str
     return tfl_status.format_status(disrupted)
 
 
+@mcp.tool()
+def find_station(query: str, modes: list[str] = tfl_status.DEFAULT_RAIL_MODES) -> str:
+    """Find TFL station ids by name.
+
+    Always use this to turn a place name the user gave into ids before
+    calling plan_journey or get_arrivals -- those tools need ids, not
+    names, because names are ambiguous (e.g. "Kings Cross" also matches
+    bus stops). Each match has an `id` (use it with get_arrivals) and a
+    `journey_id` (use it with plan_journey; a hub `id` is not accepted as
+    a journey endpoint).
+
+    Args:
+        query: Station or place name, e.g. 'kings cross', 'waterloo'.
+        modes: TFL modes to search. Defaults to 'tube', 'dlr',
+            'overground', 'elizabeth-line'. Add 'national-rail' for
+            National Rail stations.
+    """
+    data = tfl_status.search_stations(query, modes)
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_stations(data)
+
+
+@mcp.tool()
+def get_arrivals(stop_id: str, line_ids: list[str] | None = None) -> str:
+    """Get the next trains arriving at a station, soonest first.
+
+    Args:
+        stop_id: Station `id` from find_station, e.g. '940GZZLUWLO'.
+        line_ids: Optional TFL line ids to restrict to, e.g. ['victoria'].
+            Omit to see every line at the station.
+    """
+    data = tfl_status.fetch_arrivals(stop_id)
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_arrivals(data, line_ids)
+
+
+@mcp.tool()
+def plan_journey(
+    origin: str,
+    destination: str,
+    preference: str = "leasttime",
+    step_free: bool = False,
+    when: str | None = None,
+    when_is: str = "departing",
+) -> str:
+    """Plan a journey between two London stations, reflecting live disruption.
+
+    Returns up to 3 options with departure/arrival times, duration and
+    per-leg detail, including any disruption affecting a leg. TFL's
+    planner routes around live disruption, so the fastest option already
+    accounts for it.
+
+    Args:
+        origin: `journey_id` from find_station (or 'lat,lon'). Not a name.
+        destination: `journey_id` from find_station (or 'lat,lon'). Not a name.
+        preference: 'leasttime' (default), 'leastinterchange' or 'leastwalking'.
+        step_free: True for step-free routes only.
+        when: Local London time, ISO format without UTC offset, e.g.
+            '2026-09-21T09:00'. Omit to travel now.
+        when_is: 'departing' (default) to leave at `when`, or 'arriving'
+            to arrive by `when`.
+    """
+    try:
+        data = tfl_status.fetch_journey(
+            origin, destination, preference, step_free, when, when_is
+        )
+    except ValueError as e:
+        return json.dumps({"result": str(e)})
+    if data is None:
+        return tfl_status.LOOKUP_FAILURE_MESSAGE
+    return tfl_status.format_journeys(data)
+
+
 if __name__ == "__main__":
     # Initialize and run the server
     mcp.run(transport="stdio")

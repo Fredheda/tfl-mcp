@@ -15,7 +15,7 @@ def test_get_tfl_status_calls_fetch_line_status(monkeypatch):
 
     monkeypatch.setattr(tfl.tfl_status, "fetch_line_status", fake_fetch_line_status)
     result = tfl.get_tfl_status(lines=["victoria"])
-    assert "jubilee" in result
+    assert "victoria" in result
 
 
 def test_get_tfl_status_returns_error_message_on_fetch_failure(monkeypatch):

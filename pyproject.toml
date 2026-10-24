@@ -25,9 +25,30 @@ package-mode = false
 [tool.poetry.group.dev.dependencies]
 pytest = "9.1.1"
 pytest-asyncio = "^1.4.0"
+ruff = "0.17.2"
+pyright = "1.1.414"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py313"
+extend-exclude = ["**/.venv", "**/.python_packages"]
+
+[tool.ruff.lint]
+# ruff's default rules (E4, E7, E9, F) plus import sorting (I)
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# load_dotenv() must run before the imports below it: they read env vars
+# (OPENAI_API_KEY, FUNCTION_APP_URL) at import time.
+"tfl_status_agent/server.py" = ["E402"]
+
+[tool.pyright]
+include = ["tfl.py", "tfl_status.py", "tfl_status_agent", "tests", "scripts"]
+exclude = ["**/.venv", "function_app"]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
 
 [build-system]
 requires = ["poetry-core>=2.0"]

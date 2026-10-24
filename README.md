@@ -63,3 +63,13 @@ management.
 ```sh
 poetry run python tfl.py
 ```
+
+## Checks
+
+```sh
+poetry run pytest tests/ -v
+poetry run ruff check . && poetry run ruff format --check .
+poetry run pyright
+```
+
+The Azure Function App has its own isolated environment and tests; see `CLAUDE.md`. All of these also run in GitHub Actions (`.github/workflows/ci.yml`) on every pull request and every push to `main`, as three checks: `backend-test`, `backend-lint`, and `function-app-test`.

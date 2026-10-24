@@ -19,8 +19,13 @@ def _tool_call_message(**extra) -> AIMessage:
 
 def test_reasoning_then_tool_call_in_order_normalized_shape():
     message = _tool_call_message(
-        content=[{"type": "reasoning", "id": "rs_1", "reasoning": "User wants two lines."}],
-        response_metadata={"model_provider": "openai", "output_version": "responses/v1"},
+        content=[
+            {"type": "reasoning", "id": "rs_1", "reasoning": "User wants two lines."}
+        ],
+        response_metadata={
+            "model_provider": "openai",
+            "output_version": "responses/v1",
+        },
     )
     assert trace_lines({"model": {"messages": [message]}}) == [
         ("reasoning", "User wants two lines."),
@@ -80,7 +85,15 @@ def test_non_message_updates_and_human_messages_are_ignored():
 
 def test_final_answer_text_returns_text_of_last_plain_ai_message():
     plain = AIMessage(content="Victoria line: Good Service.")
-    assert final_answer_text({"model": {"messages": [plain]}}) == "Victoria line: Good Service."
+    assert (
+        final_answer_text({"model": {"messages": [plain]}})
+        == "Victoria line: Good Service."
+    )
     assert final_answer_text({"model": {"messages": [_tool_call_message()]}}) is None
-    assert final_answer_text({"tools": {"messages": [ToolMessage(content="x", tool_call_id="c")]}}) is None
+    assert (
+        final_answer_text(
+            {"tools": {"messages": [ToolMessage(content="x", tool_call_id="c")]}}
+        )
+        is None
+    )
     assert final_answer_text(None) is None

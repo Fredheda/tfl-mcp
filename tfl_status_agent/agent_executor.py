@@ -23,26 +23,38 @@ from tfl_status_agent.agent import GraphHolder
 from tfl_status_agent.trace import final_answer_text, trace_lines
 
 
+def _task_updater(context: RequestContext, event_queue: EventQueue) -> TaskUpdater:
+    # The SDK types these ids as optional, but the framework always sets them
+    # before calling an executor.
+    if context.task_id is None or context.context_id is None:
+        raise ValueError("RequestContext is missing task_id or context_id")
+    return TaskUpdater(event_queue, context.task_id, context.context_id)
+
+
 class TflStatusAgentExecutor(AgentExecutor):
     def __init__(self, graph_holder: GraphHolder) -> None:
         self.graph_holder = graph_holder
 
-    async def execute(
-        self, context: RequestContext, event_queue: EventQueue
-    ) -> None:
+    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.current_task is None:
+            if context.message is None:
+                raise ValueError("RequestContext has no message to start a task from")
             # The framework requires an actual Task to be enqueued before any
             # TaskStatusUpdateEvent/TaskArtifactUpdateEvent for a new task.
-            await event_queue.enqueue_event(
-                new_task_from_user_message(context.message)
-            )
+            await event_queue.enqueue_event(new_task_from_user_message(context.message))
 
-        updater = TaskUpdater(event_queue, context.task_id, context.context_id)
+        updater = _task_updater(context, event_queue)
         await updater.start_work()
+
+        graph = self.graph_holder.graph
+        if graph is None:
+            raise RuntimeError(
+                "The agent graph is not built yet (startup has not finished)"
+            )
 
         user_input = context.get_user_input() or "What's the tube status?"
         answer = ""
-        async for update in self.graph_holder.graph.astream(
+        async for update in graph.astream(
             {"messages": [{"role": "user", "content": user_input}]},
             config={"configurable": {"thread_id": context.context_id}},
             stream_mode="updates",
@@ -60,8 +72,6 @@ class TflStatusAgentExecutor(AgentExecutor):
         await updater.add_artifact([new_text_part(answer)], name="tfl_status")
         await updater.complete()
 
-    async def cancel(
-        self, context: RequestContext, event_queue: EventQueue
-    ) -> None:
-        updater = TaskUpdater(event_queue, context.task_id, context.context_id)
+    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        updater = _task_updater(context, event_queue)
         await updater.cancel()

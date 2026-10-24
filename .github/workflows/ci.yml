@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same PR cancels the run that is still going. Pushes to
+# main are never cancelled, so every commit on main gets a result.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Poetry
+        run: pipx install "poetry>=2.0,<3.0"
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+          cache: poetry
+      - run: poetry install --no-interaction
+      - run: poetry run pytest tests/ -v
+
+  backend-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Poetry
+        run: pipx install "poetry>=2.0,<3.0"
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+          cache: poetry
+      - run: poetry install --no-interaction
+      - run: poetry run ruff check .
+      - run: poetry run ruff format --check .
+      - run: poetry run pyright
+
+  # function_app/ is a separate deployable with its own dependencies; test it
+  # in an isolated venv, never in the Poetry environment.
+  function-app-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: function_app/requirements.txt
+      - run: python -m venv function_app/.venv
+      - run: function_app/.venv/bin/pip install -r function_app/requirements.txt pytest==9.1.1
+      - name: Run function_app tests
+        working-directory: function_app
+        run: .venv/bin/pytest tests -v

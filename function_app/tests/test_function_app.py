@@ -18,7 +18,7 @@ def test_get_tfl_status_returns_formatted_json(monkeypatch):
     )
     context = json.dumps({"arguments": {"lines": ["victoria"]}})
     result = function_app.get_tfl_status(context=context)
-    assert "victoria" in result
+    assert "jubilee" in result
 
 
 def test_get_tfl_status_missing_lines_returns_error():

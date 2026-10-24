@@ -292,6 +292,7 @@ def test_fetch_arrivals_expands_a_hub_to_its_tfl_rail_children(monkeypatch):
         "https://api.tfl.gov.uk/StopPoint/940GZZLUKSX/Arrivals",
         "https://api.tfl.gov.uk/StopPoint/910GHGHI/Arrivals",
     ]
+    assert result is not None
     assert len(result) == 2
 
 

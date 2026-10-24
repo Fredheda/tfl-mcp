@@ -7,7 +7,8 @@ def test_build_mcp_client_uses_env_vars(monkeypatch):
 
     client = build_mcp_client()
 
-    config = client.connections["tfl"]
+    # A plain dict: the connection is a union of per-transport TypedDicts.
+    config = dict(client.connections["tfl"])
     assert (
         config["url"] == "https://func-tfl-mcp.azurewebsites.net/runtime/webhooks/mcp"
     )

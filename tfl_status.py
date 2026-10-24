@@ -49,8 +49,12 @@ NO_STATIONS_MESSAGE = json.dumps({"result": "No matching stations found."})
 DEFAULT_RAIL_MODES = ["tube", "dlr", "overground", "elizabeth-line"]
 
 
-def make_tfl_request(url: str) -> dict[str, Any] | None:
-    """Make a request to the TFL API. Returns None on any request failure."""
+def make_tfl_request(url: str) -> Any:
+    """Make a request to the TFL API.
+
+    Returns the decoded JSON body (a list for the status endpoints, a dict for
+    others), or None on any request failure.
+    """
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()

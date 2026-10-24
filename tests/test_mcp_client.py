@@ -1,4 +1,3 @@
-import os
 
 from tfl_status_agent.mcp_client import build_mcp_client
 

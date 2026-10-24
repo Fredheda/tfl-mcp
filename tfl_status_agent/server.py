@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-from fastapi import FastAPI
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import (
     add_a2a_routes_to_fastapi,
@@ -25,6 +24,7 @@ from a2a.server.routes import (
 )
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
+from fastapi import FastAPI
 
 from tfl_status_agent.agent import GraphHolder
 from tfl_status_agent.agent_executor import TflStatusAgentExecutor

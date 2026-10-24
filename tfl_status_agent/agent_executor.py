@@ -27,15 +27,11 @@ class TflStatusAgentExecutor(AgentExecutor):
     def __init__(self, graph_holder: GraphHolder) -> None:
         self.graph_holder = graph_holder
 
-    async def execute(
-        self, context: RequestContext, event_queue: EventQueue
-    ) -> None:
+    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.current_task is None:
             # The framework requires an actual Task to be enqueued before any
             # TaskStatusUpdateEvent/TaskArtifactUpdateEvent for a new task.
-            await event_queue.enqueue_event(
-                new_task_from_user_message(context.message)
-            )
+            await event_queue.enqueue_event(new_task_from_user_message(context.message))
 
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
         await updater.start_work()
@@ -60,8 +56,6 @@ class TflStatusAgentExecutor(AgentExecutor):
         await updater.add_artifact([new_text_part(answer)], name="tfl_status")
         await updater.complete()
 
-    async def cancel(
-        self, context: RequestContext, event_queue: EventQueue
-    ) -> None:
+    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
         await updater.cancel()

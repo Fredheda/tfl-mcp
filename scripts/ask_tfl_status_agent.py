@@ -19,6 +19,7 @@ non-streaming callers).
 
 Usage: python3 scripts/ask_tfl_status_agent.py "victoria line status" [base_url] [bearer_token] [--blocking]
 """
+
 import asyncio
 import sys
 import time
@@ -47,10 +48,17 @@ async def main(query: str, base_url: str, token: str | None, streaming: bool) ->
         async for response in client.send_message(SendMessageRequest(message=message)):
             if response.HasField("status_update"):
                 event = response.status_update
-                if event.status.state == TaskState.TASK_STATE_WORKING and event.status.HasField("message"):
-                    kind = event.metadata["kind"] if "kind" in event.metadata else "info"
+                if (
+                    event.status.state == TaskState.TASK_STATE_WORKING
+                    and event.status.HasField("message")
+                ):
+                    kind = (
+                        event.metadata["kind"] if "kind" in event.metadata else "info"
+                    )
                     elapsed = time.monotonic() - started
-                    print(f"  [{elapsed:5.1f}s] [{kind}] {get_message_text(event.status.message)}")
+                    print(
+                        f"  [{elapsed:5.1f}s] [{kind}] {get_message_text(event.status.message)}"
+                    )
             elif response.HasField("artifact_update"):
                 artifacts.append(get_artifact_text(response.artifact_update.artifact))
             elif response.HasField("task") and response.task.artifacts:

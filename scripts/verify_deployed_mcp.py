@@ -12,6 +12,7 @@ writing (latest, 0.3.2, hard-pins mcp<2.0.0).
 Usage: python3 scripts/verify_deployed_mcp.py [<line> ...]
 Requires FUNCTION_APP_URL and FUNCTION_MCP_KEY in the environment or .env.
 """
+
 import asyncio
 import os
 import sys

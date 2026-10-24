@@ -5,6 +5,7 @@ on it.
 
 Usage: python3 scripts/verify_agent_card.py [base_url]
 """
+
 import sys
 
 import httpx

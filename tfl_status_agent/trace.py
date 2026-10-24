@@ -53,7 +53,12 @@ def _ai_message_lines(message: AIMessage) -> list[TraceLine]:
     lines: list[TraceLine] = [("reasoning", text) for text in _reasoning_texts(message)]
     if message.tool_calls:
         for call in message.tool_calls:
-            lines.append(("tool_call", f"Calling {call['name']}({_format_args(call.get('args') or {})})"))
+            lines.append(
+                (
+                    "tool_call",
+                    f"Calling {call['name']}({_format_args(call.get('args') or {})})",
+                )
+            )
     else:
         lines.append(("answering", "Composing answer"))
     return lines

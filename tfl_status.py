@@ -117,9 +117,7 @@ def format_status(lines: list[dict]) -> str:
     return json.dumps(result, indent=4)
 
 
-def search_stations(
-    query: str, modes: list[str], max_results: int = 5
-) -> dict | None:
+def search_stations(query: str, modes: list[str], max_results: int = 5) -> dict | None:
     """Search stations/stops by name, restricted to the given modes."""
     params = {
         "query": query,

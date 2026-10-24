@@ -38,12 +38,18 @@ def test_fetch_line_status_batches_ids_into_one_request(monkeypatch):
 
     def fake_make_tfl_request(url):
         seen_urls.append(url)
-        return [{"id": "victoria", "lineStatuses": []}, {"id": "central", "lineStatuses": []}]
+        return [
+            {"id": "victoria", "lineStatuses": []},
+            {"id": "central", "lineStatuses": []},
+        ]
 
     monkeypatch.setattr(tfl_status, "make_tfl_request", fake_make_tfl_request)
     result = tfl_status.fetch_line_status(["victoria", "central"])
     assert seen_urls == ["https://api.tfl.gov.uk/Line/victoria,central/Status"]
-    assert result == [{"id": "victoria", "lineStatuses": []}, {"id": "central", "lineStatuses": []}]
+    assert result == [
+        {"id": "victoria", "lineStatuses": []},
+        {"id": "central", "lineStatuses": []},
+    ]
 
 
 def test_fetch_line_status_returns_none_on_failure(monkeypatch):
@@ -71,45 +77,72 @@ def test_fetch_status_for_modes_returns_none_on_failure(monkeypatch):
 
 def test_filter_disrupted_drops_good_service_lines():
     lines = [
-        {"id": "victoria", "lineStatuses": [{"statusSeverityDescription": "Good Service"}]},
-        {"id": "central", "lineStatuses": [{"statusSeverityDescription": "Minor Delays"}]},
+        {
+            "id": "victoria",
+            "lineStatuses": [{"statusSeverityDescription": "Good Service"}],
+        },
+        {
+            "id": "central",
+            "lineStatuses": [{"statusSeverityDescription": "Minor Delays"}],
+        },
     ]
     result = tfl_status.filter_disrupted(lines)
     assert [line["id"] for line in result] == ["central"]
 
 
 def test_filter_disrupted_returns_empty_list_when_all_good():
-    lines = [{"id": "victoria", "lineStatuses": [{"statusSeverityDescription": "Good Service"}]}]
+    lines = [
+        {
+            "id": "victoria",
+            "lineStatuses": [{"statusSeverityDescription": "Good Service"}],
+        }
+    ]
     assert tfl_status.filter_disrupted(lines) == []
 
 
 def test_format_status_basic_good_service():
-    lines = [{"id": "victoria", "lineStatuses": [{"statusSeverityDescription": "Good Service"}]}]
+    lines = [
+        {
+            "id": "victoria",
+            "lineStatuses": [{"statusSeverityDescription": "Good Service"}],
+        }
+    ]
     result = json.loads(tfl_status.format_status(lines))
-    assert result == {"victoria": [{"status": "Good Service", "reason": "No disruption"}]}
+    assert result == {
+        "victoria": [{"status": "Good Service", "reason": "No disruption"}]
+    }
 
 
 def test_format_status_defaults_missing_and_none_reason():
     lines = [
-        {"id": "victoria", "lineStatuses": [{"statusSeverityDescription": "Good Service", "reason": None}]},
+        {
+            "id": "victoria",
+            "lineStatuses": [
+                {"statusSeverityDescription": "Good Service", "reason": None}
+            ],
+        },
     ]
     result = json.loads(tfl_status.format_status(lines))
     assert result["victoria"][0]["reason"] == "No disruption"
 
 
 def test_format_status_includes_category_and_omits_empty_lists():
-    lines = [{
-        "id": "central",
-        "lineStatuses": [{
-            "statusSeverityDescription": "Minor Delays",
-            "reason": "Central Line: Minor delays between White City and Ealing Broadway.",
-            "disruption": {
-                "category": "RealTime",
-                "affectedStops": [],
-                "affectedRoutes": [],
-            },
-        }],
-    }]
+    lines = [
+        {
+            "id": "central",
+            "lineStatuses": [
+                {
+                    "statusSeverityDescription": "Minor Delays",
+                    "reason": "Central Line: Minor delays between White City and Ealing Broadway.",
+                    "disruption": {
+                        "category": "RealTime",
+                        "affectedStops": [],
+                        "affectedRoutes": [],
+                    },
+                }
+            ],
+        }
+    ]
     result = json.loads(tfl_status.format_status(lines))
     entry = result["central"][0]
     assert entry["status"] == "Minor Delays"
@@ -119,18 +152,22 @@ def test_format_status_includes_category_and_omits_empty_lists():
 
 
 def test_format_status_includes_nonempty_affected_stops():
-    lines = [{
-        "id": "mildmay",
-        "lineStatuses": [{
-            "statusSeverityDescription": "Part Closure",
-            "reason": "Mildmay line: closed between Highbury & Islington and Stratford.",
-            "disruption": {
-                "category": "PlannedWork",
-                "affectedStops": [{"id": "940GZZLUHAI"}],
-                "affectedRoutes": [],
-            },
-        }],
-    }]
+    lines = [
+        {
+            "id": "mildmay",
+            "lineStatuses": [
+                {
+                    "statusSeverityDescription": "Part Closure",
+                    "reason": "Mildmay line: closed between Highbury & Islington and Stratford.",
+                    "disruption": {
+                        "category": "PlannedWork",
+                        "affectedStops": [{"id": "940GZZLUHAI"}],
+                        "affectedRoutes": [],
+                    },
+                }
+            ],
+        }
+    ]
     result = json.loads(tfl_status.format_status(lines))
     assert result["mildmay"][0]["affectedStops"] == [{"id": "940GZZLUHAI"}]
 
@@ -183,7 +220,15 @@ def test_format_stations_lists_ids_name_and_modes_only():
 
 
 def test_format_stations_journey_id_falls_back_to_id_without_ics_id():
-    data = {"matches": [{"id": "940GZZLUWLO", "name": "Waterloo Underground Station", "modes": ["tube"]}]}
+    data = {
+        "matches": [
+            {
+                "id": "940GZZLUWLO",
+                "name": "Waterloo Underground Station",
+                "modes": ["tube"],
+            }
+        ]
+    }
     result = json.loads(tfl_status.format_stations(data))
     assert result[0]["journey_id"] == "940GZZLUWLO"
 
@@ -193,7 +238,9 @@ def test_format_stations_reports_no_matches():
     assert result == {"result": "No matching stations found."}
 
 
-def _arrival(line_id, line_name, seconds, platform="Platform 1", destination="Somewhere"):
+def _arrival(
+    line_id, line_name, seconds, platform="Platform 1", destination="Somewhere"
+):
     return {
         "lineId": line_id,
         "lineName": line_name,
@@ -256,7 +303,10 @@ def test_fetch_arrivals_returns_none_when_hub_lookup_fails(monkeypatch):
 def test_fetch_arrivals_returns_none_when_a_child_lookup_fails(monkeypatch):
     def fake_make_tfl_request(url):
         if url.endswith("/StopPoint/HUBKGX"):
-            return {"id": "HUBKGX", "children": [{"id": "940GZZLUKSX", "modes": ["tube"]}]}
+            return {
+                "id": "HUBKGX",
+                "children": [{"id": "940GZZLUKSX", "modes": ["tube"]}],
+            }
         return None
 
     monkeypatch.setattr(tfl_status, "make_tfl_request", fake_make_tfl_request)
@@ -285,7 +335,9 @@ def test_journey_params_adds_step_free_preference():
 
 
 def test_journey_params_converts_when_to_tfl_date_time_and_direction():
-    params = tfl_status.journey_params("leasttime", False, "2026-09-21T09:05", "arriving")
+    params = tfl_status.journey_params(
+        "leasttime", False, "2026-09-21T09:05", "arriving"
+    )
     assert params["date"] == "20260921"
     assert params["time"] == "0905"
     assert params["timeIs"] == "Arriving"
@@ -308,7 +360,9 @@ def test_journey_params_rejects_unparseable_when():
 
 def test_journey_params_rejects_when_with_utc_offset():
     with pytest.raises(ValueError, match="without a UTC offset"):
-        tfl_status.journey_params("leasttime", False, "2026-09-21T09:00+01:00", "departing")
+        tfl_status.journey_params(
+            "leasttime", False, "2026-09-21T09:00+01:00", "departing"
+        )
 
 
 def _journey_response():
@@ -322,7 +376,9 @@ def _journey_response():
                     {
                         "mode": {"id": "walking"},
                         "duration": 3,
-                        "departurePoint": {"commonName": "Waterloo Underground Station"},
+                        "departurePoint": {
+                            "commonName": "Waterloo Underground Station"
+                        },
                         "arrivalPoint": {"commonName": "Waterloo Station"},
                         "routeOptions": [{"name": ""}],
                         "disruptions": [],
@@ -330,8 +386,12 @@ def _journey_response():
                     {
                         "mode": {"id": "tube"},
                         "duration": 11,
-                        "departurePoint": {"commonName": "Waterloo Underground Station"},
-                        "arrivalPoint": {"commonName": "King's Cross St. Pancras Underground Station"},
+                        "departurePoint": {
+                            "commonName": "Waterloo Underground Station"
+                        },
+                        "arrivalPoint": {
+                            "commonName": "King's Cross St. Pancras Underground Station"
+                        },
                         "routeOptions": [{"name": "Northern"}],
                         "disruptions": [
                             {"description": "Northern line: minor delays."},
@@ -353,7 +413,12 @@ def test_fetch_journey_builds_url_from_ids_and_params(monkeypatch):
 
     monkeypatch.setattr(tfl_status, "make_tfl_request", fake_make_tfl_request)
     tfl_status.fetch_journey(
-        "940GZZLUWLO", "1000129", "leastinterchange", True, "2026-09-21T09:00", "arriving"
+        "940GZZLUWLO",
+        "1000129",
+        "leastinterchange",
+        True,
+        "2026-09-21T09:00",
+        "arriving",
     )
     parsed = urlparse(seen_urls[0])
     assert parsed.path == "/Journey/JourneyResults/940GZZLUWLO/to/1000129"
@@ -368,7 +433,9 @@ def test_fetch_journey_builds_url_from_ids_and_params(monkeypatch):
 
 def test_fetch_journey_keeps_lat_lon_commas_in_path(monkeypatch):
     seen_urls = []
-    monkeypatch.setattr(tfl_status, "make_tfl_request", lambda url: seen_urls.append(url) or {})
+    monkeypatch.setattr(
+        tfl_status, "make_tfl_request", lambda url: seen_urls.append(url) or {}
+    )
     tfl_status.fetch_journey("51.5,-0.12", "940GZZLUKSX")
     assert "/JourneyResults/51.5,-0.12/to/940GZZLUKSX" in seen_urls[0]
 
@@ -447,7 +514,10 @@ def test_format_arrivals_sorts_soonest_first_and_converts_to_minutes():
 
 
 def test_format_arrivals_filters_by_line_ids():
-    arrivals = [_arrival("northern", "Northern", 60), _arrival("bakerloo", "Bakerloo", 120)]
+    arrivals = [
+        _arrival("northern", "Northern", 60),
+        _arrival("bakerloo", "Bakerloo", 120),
+    ]
     result = json.loads(tfl_status.format_arrivals(arrivals, line_ids=["Bakerloo"]))
     assert [a["line"] for a in result] == ["Bakerloo"]
 
@@ -459,6 +529,10 @@ def test_format_arrivals_applies_limit():
 
 
 def test_format_arrivals_reports_none_when_empty_or_filtered_out():
-    assert json.loads(tfl_status.format_arrivals([])) == {"result": "No upcoming arrivals."}
-    filtered = tfl_status.format_arrivals([_arrival("northern", "Northern", 60)], line_ids=["jubilee"])
+    assert json.loads(tfl_status.format_arrivals([])) == {
+        "result": "No upcoming arrivals."
+    }
+    filtered = tfl_status.format_arrivals(
+        [_arrival("northern", "Northern", 60)], line_ids=["jubilee"]
+    )
     assert json.loads(filtered) == {"result": "No upcoming arrivals."}

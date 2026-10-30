@@ -219,3 +219,196 @@ def test_package_fails_clearly_when_inputs_are_missing(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert "tfl_status.py" in result.stderr
     assert not out.exists()
+
+
+# --- fake az / curl ----------------------------------------------------------
+
+# Records every call. Answers from environment variables:
+# - FAKE_FAIL_ZIP: when set, `config-zip` exits 1.
+# - FAKE_FUNCTIONS: `;`-separated answers to successive `function list` calls,
+#   each a comma list of names (empty = none yet, ERR = the call fails). The
+#   last answer repeats.
+FAKE_AZ = r"""#!/usr/bin/env bash
+echo "$*" >> "$FAKE_LOG"
+case "$*" in
+  "functionapp deployment source config-zip"*)
+    [ -n "${FAKE_FAIL_ZIP:-}" ] && exit 1
+    exit 0 ;;
+  "functionapp function list"*)
+    counter="$FAKE_LOG.list"
+    n=$(cat "$counter" 2>/dev/null || echo 0)
+    IFS=';' read -r -a steps <<< "${FAKE_FUNCTIONS:-}"
+    step=""
+    if [ "${#steps[@]}" -gt 0 ]; then
+      last=$(( ${#steps[@]} - 1 ))
+      idx=$(( n > last ? last : n ))
+      step="${steps[$idx]}"
+    fi
+    echo $(( n + 1 )) > "$counter"
+    [ "$step" = "ERR" ] && exit 1
+    echo "$step" | tr ',' '\n' | sed '/^$/d'
+    exit 0 ;;
+esac
+exit 0
+"""
+
+# Stands in for the GitHub Actions OIDC token endpoint.
+FAKE_CURL = r"""#!/usr/bin/env bash
+echo "$*" >> "$FAKE_LOG.curl"
+echo '{"value":"fake-token"}'
+"""
+
+APP = "func-tfl-mcp"
+RG = "rg-chatbot"
+
+
+@dataclass
+class FakeAz:
+    log: Path
+    bin_dir: Path
+
+    def run(
+        self, script: str, *args: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        return run_script(
+            script,
+            *args,
+            cwd=REPO_ROOT,
+            env={
+                "PATH": f"{self.bin_dir}{os.pathsep}{os.environ['PATH']}",
+                "FAKE_LOG": str(self.log),
+                **(env or {}),
+            },
+        )
+
+    def calls(self, suffix: str = "") -> list[str]:
+        path = Path(f"{self.log}{suffix}")
+        return path.read_text().splitlines() if path.exists() else []
+
+
+@pytest.fixture
+def fake_az(tmp_path: Path) -> FakeAz:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, body in (("az", FAKE_AZ), ("curl", FAKE_CURL)):
+        tool = bin_dir / name
+        tool.write_text(body)
+        tool.chmod(0o755)
+    return FakeAz(log=tmp_path / "az.log", bin_dir=bin_dir)
+
+
+# --- ci-azure-login.sh -------------------------------------------------------
+
+LOGIN_ENV = {
+    "AZURE_TENANT_ID": "tenant-1",
+    "AZURE_SUBSCRIPTION_ID": "sub-1",
+    "ACTIONS_ID_TOKEN_REQUEST_URL": "https://token.example.test/?api-version=2",
+    "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "request-token",
+}
+
+
+def test_login_exchanges_the_token_for_the_identity(fake_az: FakeAz) -> None:
+    result = fake_az.run("ci-azure-login.sh", "client-1", env=LOGIN_ENV)
+    assert result.returncode == 0, result.stderr
+    assert (
+        "login --service-principal -u client-1 -t tenant-1 "
+        "--federated-token fake-token --allow-no-subscriptions --output none"
+    ) in fake_az.calls()
+    assert "account set --subscription sub-1" in fake_az.calls()
+    assert any(
+        "audience=api://AzureADTokenExchange" in c for c in fake_az.calls(".curl")
+    )
+
+
+def test_login_fails_without_an_oidc_endpoint(fake_az: FakeAz) -> None:
+    env = {**LOGIN_ENV, "ACTIONS_ID_TOKEN_REQUEST_URL": ""}
+    result = fake_az.run("ci-azure-login.sh", "client-1", env=env)
+    assert result.returncode == 1
+    assert "id-token: write" in result.stderr
+    assert fake_az.calls() == []
+
+
+# --- deploy-functions.sh -----------------------------------------------------
+
+
+@pytest.fixture
+def zip_file(tmp_path: Path) -> Path:
+    path = tmp_path / "functions.zip"
+    path.write_bytes(b"zip")
+    return path
+
+
+def test_deploy_calls_config_zip_with_a_remote_build(
+    fake_az: FakeAz, zip_file: Path
+) -> None:
+    result = fake_az.run(
+        "deploy-functions.sh", str(zip_file), "5", "0", env={"FAKE_FUNCTIONS": "a"}
+    )
+    assert result.returncode == 0, result.stderr
+    assert (
+        f"functionapp deployment source config-zip -g {RG} -n {APP} "
+        f"--src {zip_file} --build-remote true"
+    ) in fake_az.calls()
+
+
+def test_deploy_prints_the_functions_it_finds(fake_az: FakeAz, zip_file: Path) -> None:
+    result = fake_az.run(
+        "deploy-functions.sh",
+        str(zip_file),
+        "5",
+        "0",
+        env={"FAKE_FUNCTIONS": "get_tfl_status,find_station"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert "function: get_tfl_status" in result.stdout
+    assert "function: find_station" in result.stdout
+
+
+def test_deploy_waits_while_the_function_list_is_empty(
+    fake_az: FakeAz, zip_file: Path
+) -> None:
+    result = fake_az.run(
+        "deploy-functions.sh", str(zip_file), "30", "0", env={"FAKE_FUNCTIONS": ";;a"}
+    )
+    assert result.returncode == 0, result.stderr
+    lists = [c for c in fake_az.calls() if c.startswith("functionapp function list")]
+    assert len(lists) == 3
+
+
+def test_deploy_fails_when_no_function_ever_appears(
+    fake_az: FakeAz, zip_file: Path
+) -> None:
+    result = fake_az.run(
+        "deploy-functions.sh", str(zip_file), "1", "0.1", env={"FAKE_FUNCTIONS": ""}
+    )
+    assert result.returncode == 1
+    assert APP in result.stderr
+
+
+def test_deploy_treats_a_list_error_as_empty(fake_az: FakeAz, zip_file: Path) -> None:
+    result = fake_az.run(
+        "deploy-functions.sh", str(zip_file), "30", "0", env={"FAKE_FUNCTIONS": "ERR;a"}
+    )
+    assert result.returncode == 0, result.stderr
+    assert "function: a" in result.stdout
+
+
+def test_deploy_stops_when_config_zip_fails_and_never_lists(
+    fake_az: FakeAz, zip_file: Path
+) -> None:
+    result = fake_az.run(
+        "deploy-functions.sh",
+        str(zip_file),
+        "5",
+        "0",
+        env={"FAKE_FAIL_ZIP": "1", "FAKE_FUNCTIONS": "a"},
+    )
+    assert result.returncode == 1
+    assert not any(c.startswith("functionapp function list") for c in fake_az.calls())
+
+
+def test_deploy_rejects_a_missing_zip(fake_az: FakeAz, tmp_path: Path) -> None:
+    result = fake_az.run("deploy-functions.sh", str(tmp_path / "nope.zip"))
+    assert result.returncode == 1
+    assert "nope.zip" in result.stderr
+    assert fake_az.calls() == []

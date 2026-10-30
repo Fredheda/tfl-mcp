@@ -60,9 +60,11 @@ jobs:
       # third-party actions, so azure/login is not used).
       - name: Log in to Azure
         env:
-          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          CLIENT_ID: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
+          # Secrets, not variables: the run logs of this public repo are
+          # public, and a secret's value is masked there.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          CLIENT_ID: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
         run: ./scripts/ci-azure-login.sh "$CLIENT_ID"
 
       - name: Deploy and check the functions

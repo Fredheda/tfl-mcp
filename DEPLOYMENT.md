@@ -54,8 +54,10 @@ on the GitHub repo):
 It creates the managed identity `id-tfl-mcp-gh-deploy` with Website
 Contributor on `func-tfl-mcp` only, a federated credential that trusts only
 the `production` environment of this repo, restricts that environment to
-`main`, and sets the repo variables the workflow reads. No secret is stored in
-GitHub. Re-running it changes nothing.
+`main`, and stores the Azure IDs the workflow reads as repo secrets
+(identifiers, not credentials, but the logs of this public repo are public and
+a secret's value is masked there). No credential is stored in GitHub.
+Re-running it changes nothing.
 
 Limits:
 - Rollback rebuilds the dependencies from the old commit's

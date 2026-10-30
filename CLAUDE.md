@@ -67,8 +67,9 @@ subscription auth is refused, switch the action input to `anthropic_api_key`.
 
 ## Deploying
 
-Infra: `infra/deploy.sh`. Code: `scripts/deploy-mcp-tools.sh`. See
-`DEPLOYMENT.md`.
+Infra: `infra/deploy.sh`. Code: the manual **Deploy functions** workflow on
+GitHub (`main` only; rollback = an older SHA), with `scripts/deploy-mcp-tools.sh`
+as the laptop fallback. See `DEPLOYMENT.md`.
 
 `tfl_status_agent/server.py` calls `load_dotenv()` before its other imports
 because they read env vars at import time; ruff's E402 is ignored for that

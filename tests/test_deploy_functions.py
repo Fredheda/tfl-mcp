@@ -248,6 +248,33 @@ case "$*" in
     [ "$step" = "ERR" ] && exit 1
     echo "$step" | tr ',' '\n' | sed '/^$/d'
     exit 0 ;;
+  "account show"*tenantId*) echo "tenant-1"; exit 0 ;;
+  "account show"*) echo "sub-1"; exit 0 ;;
+  "identity show"*principalId*) echo "principal-1"; exit 0 ;;
+  "identity show"*clientId*) echo "client-1"; exit 0 ;;
+  "identity show"*)
+    [ -n "${FAKE_IDENTITY_EXISTS:-}" ] && exit 0
+    exit 1 ;;
+  "functionapp show"*)
+    echo "/subscriptions/sub-1/resourceGroups/rg-chatbot/providers/Microsoft.Web/sites/func-tfl-mcp"
+    exit 0 ;;
+  "identity federated-credential show"*)
+    [ -n "${FAKE_CREDENTIAL_EXISTS:-}" ] && exit 0
+    exit 1 ;;
+esac
+exit 0
+"""
+
+# Stands in for the GitHub CLI. Listing the environment's branch policies
+# prints FAKE_POLICY_NAMES (`\n` separates names), as the script's --jq filter
+# would.
+FAKE_GH = r"""#!/usr/bin/env bash
+echo "$*" >> "$FAKE_LOG.gh"
+case "$*" in
+  *"deployment-branch-policies"*)
+    case "$*" in *"-X POST"*) exit 0 ;; esac
+    printf '%b' "${FAKE_POLICY_NAMES:-}"
+    exit 0 ;;
 esac
 exit 0
 """
@@ -290,7 +317,7 @@ class FakeAz:
 def fake_az(tmp_path: Path) -> FakeAz:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    for name, body in (("az", FAKE_AZ), ("curl", FAKE_CURL)):
+    for name, body in (("az", FAKE_AZ), ("curl", FAKE_CURL), ("gh", FAKE_GH)):
         tool = bin_dir / name
         tool.write_text(body)
         tool.chmod(0o755)
@@ -412,3 +439,87 @@ def test_deploy_rejects_a_missing_zip(fake_az: FakeAz, tmp_path: Path) -> None:
     assert result.returncode == 1
     assert "nope.zip" in result.stderr
     assert fake_az.calls() == []
+
+
+# --- setup-github-deploy.sh --------------------------------------------------
+
+REPO = "Fredheda/tfl-mcp"
+FUNCTION_APP_ID = (
+    "/subscriptions/sub-1/resourceGroups/rg-chatbot/providers/Microsoft.Web/sites/"
+    "func-tfl-mcp"
+)
+
+
+def test_setup_grants_website_contributor_on_the_function_app_only(
+    fake_az: FakeAz,
+) -> None:
+    result = fake_az.run("setup-github-deploy.sh")
+    assert result.returncode == 0, result.stderr
+    roles = [c for c in fake_az.calls() if c.startswith("role assignment create")]
+    assert len(roles) == 1
+    assert "--role Website Contributor" in roles[0]
+    assert f"--scope {FUNCTION_APP_ID}" in roles[0]
+    assert "--assignee-object-id principal-1" in roles[0]
+
+
+def test_setup_trusts_only_the_production_environment(fake_az: FakeAz) -> None:
+    result = fake_az.run("setup-github-deploy.sh")
+    assert result.returncode == 0, result.stderr
+    creds = [
+        c
+        for c in fake_az.calls()
+        if c.startswith("identity federated-credential create")
+    ]
+    assert len(creds) == 1
+    assert f"--subject repo:{REPO}:environment:production" in creds[0]
+    assert "--audiences api://AzureADTokenExchange" in creds[0]
+
+
+def test_setup_restricts_the_environment_to_main(fake_az: FakeAz) -> None:
+    result = fake_az.run("setup-github-deploy.sh")
+    assert result.returncode == 0, result.stderr
+    gh = fake_az.calls(".gh")
+    put = [c for c in gh if f"api -X PUT repos/{REPO}/environments/production" in c]
+    assert len(put) == 1
+    assert "deployment_branch_policy[custom_branch_policies]=true" in put[0]
+    assert any(
+        "-X POST" in c and "deployment-branch-policies" in c and "name=main" in c
+        for c in gh
+    )
+
+
+def test_setup_does_not_add_the_main_policy_twice(fake_az: FakeAz) -> None:
+    result = fake_az.run("setup-github-deploy.sh", env={"FAKE_POLICY_NAMES": "main"})
+    assert result.returncode == 0, result.stderr
+    assert not any("-X POST" in c for c in fake_az.calls(".gh"))
+
+
+def test_setup_warns_about_other_branch_policies(fake_az: FakeAz) -> None:
+    result = fake_az.run(
+        "setup-github-deploy.sh", env={"FAKE_POLICY_NAMES": "main\\nfeature"}
+    )
+    assert result.returncode == 0, result.stderr
+    assert "feature" in result.stderr
+
+
+def test_setup_twice_creates_nothing_new(fake_az: FakeAz) -> None:
+    result = fake_az.run(
+        "setup-github-deploy.sh",
+        env={"FAKE_IDENTITY_EXISTS": "1", "FAKE_CREDENTIAL_EXISTS": "1"},
+    )
+    assert result.returncode == 0, result.stderr
+    calls = fake_az.calls()
+    assert not any(c.startswith("identity create") for c in calls)
+    assert not any(c.startswith("identity federated-credential create") for c in calls)
+
+
+def test_setup_sets_the_three_repo_variables(fake_az: FakeAz) -> None:
+    result = fake_az.run("setup-github-deploy.sh")
+    assert result.returncode == 0, result.stderr
+    gh = fake_az.calls(".gh")
+    for name, value in (
+        ("AZURE_TENANT_ID", "tenant-1"),
+        ("AZURE_SUBSCRIPTION_ID", "sub-1"),
+        ("AZURE_DEPLOY_CLIENT_ID", "client-1"),
+    ):
+        assert f"variable set {name} --body {value} -R {REPO}" in gh

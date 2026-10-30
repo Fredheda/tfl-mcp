@@ -12,9 +12,10 @@
 #      `production` environment of this repo can use the identity.
 #   4. Creates the `production` GitHub environment, restricted to jobs running
 #      on the main branch (a branch author cannot edit their way around it),
-#      and sets the repo VARIABLES (not secrets — none of them is secret) the
-#      workflow reads: AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
-#      AZURE_DEPLOY_CLIENT_ID.
+#      and stores the Azure IDs the workflow reads as repo SECRETS:
+#      AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_DEPLOY_CLIENT_ID. They
+#      are identifiers, not credentials, but the run logs of a public repo are
+#      public and GitHub masks a secret's value there.
 #
 # Needs the signed-in user to be able to create identities, assign roles, and
 # administer the GitHub repo. Auth is the live `az login` and `gh auth`
@@ -86,8 +87,8 @@ while IFS= read -r other; do
   echo "WARNING: environment production also admits branch '$other'; remove it in Settings > Environments unless intended." >&2
 done <<<"$policies"
 
-gh variable set AZURE_TENANT_ID --body "$TENANT_ID" -R "$GH_REPO"
-gh variable set AZURE_SUBSCRIPTION_ID --body "$SUBSCRIPTION_ID" -R "$GH_REPO"
-gh variable set AZURE_DEPLOY_CLIENT_ID --body "$CLIENT" -R "$GH_REPO"
-echo "repo variables: set"
+gh secret set AZURE_TENANT_ID --body "$TENANT_ID" -R "$GH_REPO"
+gh secret set AZURE_SUBSCRIPTION_ID --body "$SUBSCRIPTION_ID" -R "$GH_REPO"
+gh secret set AZURE_DEPLOY_CLIENT_ID --body "$CLIENT" -R "$GH_REPO"
+echo "repo secrets: set"
 echo "Done. Re-running changes nothing."

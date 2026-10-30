@@ -58,6 +58,16 @@ CI (`.github/workflows/ci.yml`) runs all of the above on every pull request and
 every push to `main`, as three checks: `backend-test`, `backend-lint`, and
 `function-app-test`.
 
+`.github/workflows/security.yml` runs on every PR, every push to `main` and
+weekly: `gitleaks` (secret scan, blocks the PR), `pip-audit` (advisory on PRs,
+fails on the weekly run), `bandit` (HIGH severity only) and `codeql` (results
+in the Security tab). The pip-audit step ignores two advisories that only a
+bump of the pinned `langchain` / `langgraph` fixes; remove the `--ignore-vuln`
+flags when those pins move. Run locally: `poetry run pip install pip-audit
+bandit`, then `poetry run pip-audit --local` and `poetry run bandit -r . -lll
+-x ./tests,./function_app/tests,./.venv,./function_app/.venv`; gitleaks via
+`gitleaks git . --redact`.
+
 `.github/workflows/claude-review.yml` posts an AI security-first review when a
 PR is opened and on every push to it; the repo owner can also request one by
 commenting `@claude`. It is comment-only and authenticates with the

@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 import function_app
 
 
@@ -210,3 +212,65 @@ def test_plan_journey_returns_error_message_on_fetch_failure(monkeypatch):
     context = json.dumps({"arguments": {"origin": "a", "destination": "b"}})
     result = function_app.plan_journey(context=context)
     assert json.loads(result) == {"result": "Unable to fetch data from TFL."}
+
+
+def _fail_if_called(*args, **kwargs):
+    raise AssertionError("TFL must not be called with invalid arguments")
+
+
+@pytest.mark.parametrize("bad", ["victoria", [1], ["victoria", 2], {"a": 1}, 7])
+def test_get_tfl_status_rejects_lines_that_are_not_a_list_of_strings(monkeypatch, bad):
+    monkeypatch.setattr(function_app.tfl_status, "fetch_line_status", _fail_if_called)
+    context = json.dumps({"arguments": {"lines": bad}})
+    result = function_app.get_tfl_status(context=context)
+    assert json.loads(result) == {"error": "lines must be a list of strings"}
+
+
+@pytest.mark.parametrize("bad", ["tube", [1], ["tube", None]])
+def test_get_disrupted_lines_rejects_modes_that_are_not_a_list_of_strings(
+    monkeypatch, bad
+):
+    monkeypatch.setattr(
+        function_app.tfl_status, "fetch_status_for_modes", _fail_if_called
+    )
+    context = json.dumps({"arguments": {"modes": bad}})
+    result = function_app.get_disrupted_lines(context=context)
+    assert json.loads(result) == {"error": "modes must be a list of strings"}
+
+
+@pytest.mark.parametrize("bad", ["tube", [1]])
+def test_find_station_rejects_modes_that_are_not_a_list_of_strings(monkeypatch, bad):
+    monkeypatch.setattr(function_app.tfl_status, "search_stations", _fail_if_called)
+    context = json.dumps({"arguments": {"query": "kings cross", "modes": bad}})
+    result = function_app.find_station(context=context)
+    assert json.loads(result) == {"error": "modes must be a list of strings"}
+
+
+def test_find_station_rejects_a_query_that_is_not_a_string(monkeypatch):
+    monkeypatch.setattr(function_app.tfl_status, "search_stations", _fail_if_called)
+    context = json.dumps({"arguments": {"query": 123}})
+    result = function_app.find_station(context=context)
+    assert json.loads(result) == {"error": "query must be a string"}
+
+
+def test_get_arrivals_rejects_a_stop_id_that_is_not_a_string(monkeypatch):
+    monkeypatch.setattr(function_app.tfl_status, "fetch_arrivals", _fail_if_called)
+    context = json.dumps({"arguments": {"stop_id": 123}})
+    result = function_app.get_arrivals(context=context)
+    assert json.loads(result) == {"error": "stop_id must be a string"}
+
+
+@pytest.mark.parametrize("bad", ["victoria", [1]])
+def test_get_arrivals_rejects_line_ids_that_are_not_a_list_of_strings(monkeypatch, bad):
+    monkeypatch.setattr(function_app.tfl_status, "fetch_arrivals", _fail_if_called)
+    context = json.dumps({"arguments": {"stop_id": "940GZZLUWLO", "line_ids": bad}})
+    result = function_app.get_arrivals(context=context)
+    assert json.loads(result) == {"error": "line_ids must be a list of strings"}
+
+
+@pytest.mark.parametrize("field", ["origin", "destination"])
+def test_plan_journey_rejects_a_location_that_is_not_a_string(monkeypatch, field):
+    monkeypatch.setattr(function_app.tfl_status, "fetch_journey", _fail_if_called)
+    arguments = {"origin": "a", "destination": "b", field: 5}
+    result = function_app.plan_journey(context=json.dumps({"arguments": arguments}))
+    assert json.loads(result) == {"error": "origin and destination must be strings"}

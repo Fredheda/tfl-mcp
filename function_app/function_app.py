@@ -6,6 +6,15 @@ import tfl_status
 
 app = func.FunctionApp()
 
+
+def _error(message: str) -> str:
+    return json.dumps({"error": message})
+
+
+def _is_string_list(value: object) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
 _GET_TFL_STATUS_PROPERTIES = json.dumps(
     [
         {
@@ -29,6 +38,8 @@ def get_tfl_status(context: str) -> str:
     lines = invocation["arguments"].get("lines")
     if not lines:
         return json.dumps({"error": "lines is required"})
+    if not _is_string_list(lines):
+        return _error("lines must be a list of strings")
 
     data = tfl_status.fetch_line_status(lines)
     if data is None:
@@ -56,7 +67,10 @@ _GET_DISRUPTED_LINES_PROPERTIES = json.dumps(
 )
 def get_disrupted_lines(context: str) -> str:
     invocation = json.loads(context)
-    modes = invocation["arguments"].get("modes") or tfl_status.DEFAULT_RAIL_MODES
+    modes = invocation["arguments"].get("modes")
+    if modes and not _is_string_list(modes):
+        return _error("modes must be a list of strings")
+    modes = modes or tfl_status.DEFAULT_RAIL_MODES
 
     data = tfl_status.fetch_status_for_modes(modes)
     if data is None:
@@ -96,7 +110,12 @@ def find_station(context: str) -> str:
     query = args.get("query")
     if not query:
         return json.dumps({"error": "query is required"})
-    modes = args.get("modes") or tfl_status.DEFAULT_RAIL_MODES
+    if not isinstance(query, str):
+        return _error("query must be a string")
+    modes = args.get("modes")
+    if modes and not _is_string_list(modes):
+        return _error("modes must be a list of strings")
+    modes = modes or tfl_status.DEFAULT_RAIL_MODES
 
     data = tfl_status.search_stations(query, modes)
     if data is None:
@@ -133,11 +152,16 @@ def get_arrivals(context: str) -> str:
     stop_id = args.get("stop_id")
     if not stop_id:
         return json.dumps({"error": "stop_id is required"})
+    if not isinstance(stop_id, str):
+        return _error("stop_id must be a string")
+    line_ids = args.get("line_ids")
+    if line_ids and not _is_string_list(line_ids):
+        return _error("line_ids must be a list of strings")
 
     data = tfl_status.fetch_arrivals(stop_id)
     if data is None:
         return tfl_status.LOOKUP_FAILURE_MESSAGE
-    return tfl_status.format_arrivals(data, args.get("line_ids"))
+    return tfl_status.format_arrivals(data, line_ids)
 
 
 _PLAN_JOURNEY_PROPERTIES = json.dumps(
@@ -194,6 +218,8 @@ def plan_journey(context: str) -> str:
     destination = args.get("destination")
     if not origin or not destination:
         return json.dumps({"error": "origin and destination are required"})
+    if not isinstance(origin, str) or not isinstance(destination, str):
+        return _error("origin and destination must be strings")
 
     try:
         data = tfl_status.fetch_journey(

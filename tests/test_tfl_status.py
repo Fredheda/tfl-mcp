@@ -537,3 +537,59 @@ def test_format_arrivals_reports_none_when_empty_or_filtered_out():
         [_arrival("northern", "Northern", 60)], line_ids=["jubilee"]
     )
     assert json.loads(filtered) == {"result": "No upcoming arrivals."}
+
+
+# A caller-supplied id must stay one path segment: "/", "?" and "#" are
+# percent-encoded, commas between ids are kept.
+HOSTILE = "a/../b?x#y"
+HOSTILE_QUOTED = "a%2F..%2Fb%3Fx%23y"
+
+
+def _record_urls(monkeypatch):
+    seen_urls = []
+
+    def fake_make_tfl_request(url):
+        seen_urls.append(url)
+        return []
+
+    monkeypatch.setattr(tfl_status, "make_tfl_request", fake_make_tfl_request)
+    return seen_urls
+
+
+def test_fetch_line_status_quotes_each_id(monkeypatch):
+    seen_urls = _record_urls(monkeypatch)
+    tfl_status.fetch_line_status(["victoria", HOSTILE])
+    assert seen_urls == [
+        f"https://api.tfl.gov.uk/Line/victoria,{HOSTILE_QUOTED}/Status"
+    ]
+
+
+def test_fetch_status_for_modes_quotes_each_mode(monkeypatch):
+    seen_urls = _record_urls(monkeypatch)
+    tfl_status.fetch_status_for_modes(["tube", HOSTILE])
+    assert seen_urls == [
+        f"https://api.tfl.gov.uk/Line/Mode/tube,{HOSTILE_QUOTED}/Status"
+    ]
+
+
+def test_fetch_arrivals_quotes_the_stop_id(monkeypatch):
+    seen_urls = _record_urls(monkeypatch)
+    tfl_status.fetch_arrivals(HOSTILE)
+    assert seen_urls == [f"https://api.tfl.gov.uk/StopPoint/{HOSTILE_QUOTED}/Arrivals"]
+
+
+def test_fetch_arrivals_quotes_a_hub_id_and_its_children(monkeypatch):
+    seen_urls = []
+
+    def fake_make_tfl_request(url):
+        seen_urls.append(url)
+        if url.endswith("/Arrivals"):
+            return []
+        return {"children": [{"id": HOSTILE, "modes": ["tube"]}]}
+
+    monkeypatch.setattr(tfl_status, "make_tfl_request", fake_make_tfl_request)
+    tfl_status.fetch_arrivals("HUB/../x")
+    assert seen_urls == [
+        "https://api.tfl.gov.uk/StopPoint/HUB%2F..%2Fx",
+        f"https://api.tfl.gov.uk/StopPoint/{HOSTILE_QUOTED}/Arrivals",
+    ]

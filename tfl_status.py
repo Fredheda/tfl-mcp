@@ -66,15 +66,24 @@ def make_tfl_request(url: str) -> Any:
     return request_object
 
 
+def _path_segments(values: list[str]) -> str:
+    """Comma-join ids for a URL path, encoding each so it stays one segment.
+
+    Callers pass ids straight from tool arguments; "/", "?" and "#" in one
+    must not be able to change which TFL endpoint is requested.
+    """
+    return ",".join(quote(value, safe="") for value in values)
+
+
 def fetch_line_status(line_ids: list[str]) -> list[dict] | None:
     """Fetch status for one or more lines in a single batched request."""
-    url = TFL_STATUS_BY_IDS.format(ids=",".join(line_ids))
+    url = TFL_STATUS_BY_IDS.format(ids=_path_segments(line_ids))
     return make_tfl_request(url)
 
 
 def fetch_status_for_modes(modes: list[str]) -> list[dict] | None:
     """Fetch status for every line of the given modes in one request."""
-    url = TFL_STATUS_BY_MODE.format(modes=",".join(modes))
+    url = TFL_STATUS_BY_MODE.format(modes=_path_segments(modes))
     return make_tfl_request(url)
 
 
@@ -166,7 +175,7 @@ def resolve_arrival_stops(stop_id: str) -> list[str] | None:
     """
     if not stop_id.startswith("HUB"):
         return [stop_id]
-    hub = make_tfl_request(TFL_STOP_POINT.format(stop_id=stop_id))
+    hub = make_tfl_request(TFL_STOP_POINT.format(stop_id=quote(stop_id, safe="")))
     if hub is None:
         return None
     return [
@@ -187,7 +196,7 @@ def fetch_arrivals(stop_id: str) -> list[dict] | None:
         return None
     arrivals: list[dict] = []
     for child_id in stop_ids:
-        data = make_tfl_request(TFL_ARRIVALS.format(stop_id=child_id))
+        data = make_tfl_request(TFL_ARRIVALS.format(stop_id=quote(child_id, safe="")))
         if data is None:
             return None
         arrivals.extend(data)

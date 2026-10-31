@@ -33,7 +33,21 @@ poetry run python tfl.py       # stdio MCP server
 - `plan_journey(origin, destination, preference, step_free, when, when_is)`: up to three journey options between two `journey_id`s from `find_station`, reflecting live disruption. `when` is local London time (`2026-09-21T09:00`); omit it to travel now.
 - `get_arrivals(stop_id, line_ids)`: the next trains arriving at a station, soonest first.
 
-To use it from Claude Desktop, add a stdio server entry that runs `poetry run python tfl.py` with this repo as its working directory (see the README). Any other MCP client works the same way; see the [MCP documentation](https://modelcontextprotocol.io/docs/develop/build-server).
+To use it from Claude Desktop, add a stdio server entry to its MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "tfl": {
+      "command": "poetry",
+      "args": ["run", "python", "tfl.py"],
+      "cwd": "/path/to/tfl-mcp"
+    }
+  }
+}
+```
+
+Any other MCP client works the same way; see the [MCP documentation](https://modelcontextprotocol.io/docs/develop/build-server).
 
 ## Run the agent locally
 

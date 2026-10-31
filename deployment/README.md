@@ -13,12 +13,12 @@ PRs run CI (see [github.md](github.md)); a merge runs nothing. Deploys are manua
 |---|---|
 | `infra/main.bicep` | `./infra/deploy.sh` (add `<git-sha>` to also roll the agent image) |
 | `tfl_status.py` or `function_app/` | **Deploy functions** workflow ([github.md](github.md)), or `./scripts/deploy-mcp-tools.sh` ([local.md](local.md)) |
-| `tfl_status_agent/` or its system prompt | `./scripts/ship.sh`, or `./scripts/redeploy.sh <git-sha>` after `build-push.sh` ([local.md](local.md)) |
+| `tfl_status_agent/` or its system prompt | **Deploy agent** workflow ([github.md](github.md)), or `./scripts/ship.sh` ([local.md](local.md)) |
 | Tools added or changed | Function App first, then the agent |
 
 ## Files
 
-- [github.md](github.md): CI and security checks, the Deploy functions workflow, rollback, one-time GitHub OIDC setup.
+- [github.md](github.md): CI and security checks, the Deploy functions and Deploy agent workflows, rollback, one-time GitHub OIDC setup, registry purge.
 - [local.md](local.md): deploying from a laptop (Function App and agent).
 - [infra.md](infra.md): Azure resources, access control, first deploy, Entra auth setup.
 - [operations.md](operations.md): verify a deployment, approve an agent caller, rollback.

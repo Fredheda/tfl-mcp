@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Guarded build+redeploy for the tfl-status agent. Refuses to run on a
-# dirty git tree (az acr build builds the working tree, not HEAD).
+# Guarded build+redeploy of HEAD for the tfl-status agent, the laptop
+# fallback to the Deploy agent workflow. Refuses to run on a dirty git tree so
+# that what ships is a commit you can name.
 #
 # Usage: ./scripts/ship.sh
 set -euo pipefail

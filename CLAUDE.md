@@ -84,4 +84,6 @@ and `AGENT_AAD_TENANT_ID`.
 
 - Local dev, the agent's local testing, security checks: `docs/development.md`.
 - Deploying (Function App via the manual **Deploy functions** workflow, agent
-  via `scripts/ship.sh`, rollback, verification, expiry dates): `deployment/`.
+  via the manual **Deploy agent** workflow, which builds the image if needed;
+  `scripts/ship.sh` is the laptop fallback; rollback, verification, expiry
+  dates): `deployment/`.

@@ -5,7 +5,7 @@ Two deployables share the `rg-chatbot` resource group:
 - **Function App** `func-tfl-mcp`: the hosted MCP server (`function_app/`, built on the root `tfl_status.py`).
 - **Agent** `ca-tfl-status-agent`: the A2A agent (`tfl_status_agent/`), a Container App in its own environment `cae-tfl-status`, gated by Microsoft Entra ID. It calls the Function App.
 
-Every PR runs CI. Deploys are manual; nothing deploys on merge.
+PRs run CI (see [github.md](github.md)); a merge runs nothing. Deploys are manual.
 
 ## What to run, by what changed
 

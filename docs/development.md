@@ -79,7 +79,7 @@ cd function_app && .venv/bin/pytest tests -v
 
 `function_app/tfl_status.py` is a gitignored copy of the root `tfl_status.py`, made by `scripts/deploy-mcp-tools.sh`. The root file is the single source of truth.
 
-All of this runs in GitHub Actions on every pull request; see [deployment/github.md](../deployment/github.md).
+`scripts/ci-local.sh` runs all of the above in the order CI does and stops at the first failure; run it before `gh pr ready`. GitHub Actions runs the same checks on pull requests (drafts run only the light ones); see [deployment/github.md](../deployment/github.md).
 
 ### Security checks locally
 

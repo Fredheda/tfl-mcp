@@ -50,10 +50,12 @@ Run from the repo root unless noted. Python 3.13, Poetry 2.x.
 | Function app tests | `cd function_app && .venv/bin/pytest tests -v` (isolated venv, see below) |
 | Lint + format check | `poetry run ruff check . && poetry run ruff format --check .` |
 | Type check | `poetry run pyright` |
+| All CI checks | `scripts/ci-local.sh` (the gate before `gh pr ready`) |
 
-CI runs all of these on every PR as `backend-test`, `backend-lint` and
-`function-app-test`; `security.yml` and `claude-review.yml` are described in
-`deployment/github.md`.
+Open PRs as drafts (`gh pr create --draft`). A draft runs only the light CI;
+run `scripts/ci-local.sh`, then `gh pr ready` starts the rest and the AI
+review. CI runs on PRs only, as `backend` and `function-app-test`; the
+workflows are described in `deployment/github.md`.
 
 Env var names (`.env`, see `.env.example`): `OPENAI_API_KEY`, `FUNCTION_APP_URL`,
 `FUNCTION_MCP_KEY`; after `scripts/setup-agent-auth.sh` also `AGENT_AAD_CLIENT_ID`

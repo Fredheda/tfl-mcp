@@ -6,7 +6,7 @@
 
 `.github/workflows/security.yml` runs on every PR, every push to `main` and weekly: `gitleaks` (secret scan, blocks the PR), `pip-audit` (advisory on PRs, fails on the weekly run), `bandit` (HIGH severity only) and `codeql` (results in the Security tab). The pip-audit step ignores two advisories that only a bump of the pinned `langchain` / `langgraph` fixes; remove the `--ignore-vuln` flags when those pins move.
 
-`.github/workflows/claude-review.yml` posts an AI security-first review when a PR is opened and on every push to it. The repo owner can also request one by commenting `@claude`. It is comment-only. Its token expiry is in [expirations.md](expirations.md).
+`.github/workflows/claude-review.yml` posts an AI security-first review when a PR is opened and on every push to it. The repo owner can also request one by commenting `@claude`. It is comment-only. Besides the security-first review, every review runs a documentation check: it reports documentation that now contradicts the change, changes with no matching documentation update, and stale names, paths, counts or versions, or says "Docs: current". Its token expiry is in [expirations.md](expirations.md).
 
 ## Function App: the Deploy functions workflow
 

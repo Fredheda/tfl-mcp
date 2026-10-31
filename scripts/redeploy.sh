@@ -1,15 +1,73 @@
 #!/usr/bin/env bash
 # Roll ca-tfl-status-agent to the image built from a given commit.
-# Usage: ./scripts/redeploy.sh [git-sha]
+# Usage: ./scripts/redeploy.sh [git-sha]   (defaults to current HEAD, the same
+# commit ./scripts/build-push.sh tags). The SHA must be the full 40-character
+# commit hash.
+#
+# Image-only: no Bicep re-run. SHA tags (not `latest`) so every deploy creates a
+# distinct revision; rollback is `./scripts/redeploy.sh <old-sha>`.
+#
+# Order of work:
+#   1. Refuse a malformed SHA, then refuse unless the image exists, so the app
+#      is never pointed at an image that is not there.
+#   2. Roll the app.
+#   3. Lock the deployed tag (`acr purge` skips locked tags, so the image a
+#      replica needs for its next cold start is never deleted) and unlock the
+#      SHA tag the app ran before. Nothing is locked or unlocked if the rollout
+#      fails.
 set -euo pipefail
+cd "$(dirname "$0")/.."
+# shellcheck source=lib/images.sh
+source scripts/lib/images.sh
 
-RG=rg-chatbot
 SHA="${1:-$(git rev-parse HEAD)}"
-[ -n "$SHA" ] || { echo "ERROR: could not resolve a SHA" >&2; exit 1; }
+if ! is_sha "$SHA"; then
+  echo "ERROR: '$SHA' is not a full 40-character commit SHA." >&2
+  exit 2
+fi
 echo "Deploying image for commit $SHA"
 
-az containerapp update -n ca-tfl-status-agent -g "$RG" \
-  --image "acrchatbotfredheda.azurecr.io/tfl-status-agent:$SHA" --output none
+missing=0
+for entry in "${IMAGES[@]}"; do
+  IFS='|' read -r repo _ <<<"$entry"
+  if ! image_exists "$repo" "$SHA"; then
+    echo "ERROR: image $repo:$SHA is not in $ACR (build for this commit missing or unfinished)." >&2
+    missing=1
+  fi
+done
+[ "$missing" -eq 0 ] || exit 1
+
+# The tag each app runs now, read before anything changes.
+old_tags=()
+for entry in "${IMAGES[@]}"; do
+  IFS='|' read -r _ app _ <<<"$entry"
+  current=$(az containerapp show -n "$app" -g "$RG" \
+    --query "properties.template.containers[0].image" -o tsv)
+  old_tags+=("${current##*:}")
+done
+
+for entry in "${IMAGES[@]}"; do
+  IFS='|' read -r repo app _ <<<"$entry"
+  az containerapp update -n "$app" -g "$RG" \
+    --image "$ACR.azurecr.io/$repo:$SHA" --output none
+done
+
+status=0
+i=0
+for entry in "${IMAGES[@]}"; do
+  IFS='|' read -r repo _ <<<"$entry"
+  lock_tag "$repo" "$SHA" || { echo "ERROR: could not lock $repo:$SHA" >&2; status=1; }
+  old="${old_tags[$i]}"
+  if is_sha "$old" && [ "$old" != "$SHA" ]; then
+    unlock_tag "$repo" "$old" || { echo "ERROR: could not unlock $repo:$old" >&2; status=1; }
+  fi
+  i=$((i + 1))
+done
+if [ "$status" -ne 0 ]; then
+  echo "The app IS rolled to $SHA; only the tag locking failed. Fix it with" >&2
+  echo "az acr repository update --image <repo>:<tag> --delete-enabled false." >&2
+  exit "$status"
+fi
 
 FQDN=$(az containerapp show -n ca-tfl-status-agent -g "$RG" \
   --query properties.configuration.ingress.fqdn -o tsv)

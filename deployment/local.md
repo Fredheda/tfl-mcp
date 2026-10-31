@@ -23,12 +23,12 @@ Code (whenever `tfl_status.py` or `function_app/function_app.py` changes):
 Infra (whenever `infra/main.bicep` changes) plus code (whenever `tfl_status_agent/` changes):
 
 ```bash
-./scripts/build-push.sh          # builds + pushes the image (needs a clean git tree)
+./scripts/build-push.sh          # builds + pushes the image of HEAD, or of a given full SHA
 ./infra/deploy.sh <git-sha>      # provisions/updates infra with that image
 # or, for a code-only change after infra is already provisioned:
 ./scripts/redeploy.sh <git-sha>
 ```
 
-`./scripts/ship.sh` does `build-push.sh` then `redeploy.sh` in one go. It refuses to run on a dirty git tree, because `az acr build` builds the working tree, not `HEAD`.
+The GitHub **Deploy agent** workflow does the same from a button ([github.md](github.md)). `build-push.sh` builds the committed SHA (from `git archive`), skips an image that already exists, and `redeploy.sh` refuses unless the image exists and keeps the registry purge locks. `./scripts/ship.sh` does `build-push.sh` then `redeploy.sh` of `HEAD` in one go, and refuses to run on a dirty git tree so that what ships is a commit you can name.
 
 The one-time Entra auth setup for the agent is in [infra.md](infra.md).

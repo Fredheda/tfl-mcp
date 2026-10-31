@@ -1,0 +1,94 @@
+name: Deploy agent
+
+# Manual only. Builds the tfl-status agent image for a commit on main
+# (scripts/build-push.sh skips an image that already exists, so a repeat deploy
+# or a rollback to an already-built commit builds nothing), then rolls
+# ca-tfl-status-agent to it. CI never builds and a merge never deploys.
+# Run it from the Actions tab or: gh workflow run deploy-agent.yml --ref main
+# Rollback is the same button with an older commit SHA.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full commit SHA to deploy (empty = the head of main)
+        required: false
+        default: ""
+
+# One deploy at a time; a second click waits instead of racing the first.
+concurrency:
+  group: deploy-agent
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          # The history is fetched here; later steps only read it locally, so
+          # keep the job's git token off disk while the Azure session is open.
+          persist-credentials: false
+
+      # Everything that can be checked without Azure is checked before logging in.
+      - name: Resolve and validate the commit
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+        run: echo "SHA=$(./scripts/resolve-agent-sha.sh "$INPUT_SHA")" >> "$GITHUB_ENV"
+
+      # OIDC login with the Azure CLI (the repo only allows a short list of
+      # third-party actions, so azure/login is not used). The build and the
+      # deploy use separate identities: the build identity can push images but
+      # cannot change the container app.
+      - name: Log in to Azure to build
+        env:
+          # Secrets rather than variables, so run logs mask the values.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          CLIENT_ID: ${{ secrets.AZURE_BUILD_CLIENT_ID }}
+        run: ./scripts/ci-azure-login.sh "$CLIENT_ID"
+
+      - name: Build the image
+        run: ./scripts/build-push.sh "$SHA"
+
+      - name: Log in to Azure to deploy
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          CLIENT_ID: ${{ secrets.AZURE_AGENT_DEPLOY_CLIENT_ID }}
+        run: ./scripts/ci-azure-login.sh "$CLIENT_ID"
+
+      - name: Roll the app
+        run: ./scripts/redeploy.sh "$SHA"
+
+      - name: Wait for the new revision
+        run: ./scripts/wait-healthy.sh
+
+      - name: Check the public address and the auth gate
+        run: ./scripts/check-agent.sh
+
+      - name: Summary
+        run: |
+          image=$(az containerapp show -n ca-tfl-status-agent -g rg-chatbot \
+            --query "properties.template.containers[0].image" -o tsv)
+          revision=$(az containerapp show -n ca-tfl-status-agent -g rg-chatbot \
+            --query "properties.latestRevisionName" -o tsv)
+          fqdn=$(az containerapp show -n ca-tfl-status-agent -g rg-chatbot \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          {
+            echo "### Deployed \`$SHA\`"
+            echo
+            git log -1 --format=%s "$SHA"
+            echo
+            echo "- \`ca-tfl-status-agent\`: \`$image\` (revision \`$revision\`)"
+            echo "- Public address: \`https://$fqdn\`"
+          } >> "$GITHUB_STEP_SUMMARY"

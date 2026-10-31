@@ -36,4 +36,4 @@ Also try these questions through an approved caller:
 
 ## Rollback
 
-Function App: run the Deploy functions workflow with an older SHA ([github.md](github.md)). Agent: `./scripts/redeploy.sh <older-git-sha>` ([local.md](local.md)).
+Function App: run the Deploy functions workflow with an older SHA ([github.md](github.md)). Agent: run the Deploy agent workflow with an older SHA ([github.md](github.md)), or `./scripts/redeploy.sh <older-git-sha>` from a laptop ([local.md](local.md)).

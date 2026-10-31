@@ -4,7 +4,7 @@ Live London transport data as MCP tools, plus an A2A agent that answers question
 
 **Status:** the tools are served as a hosted MCP server (an Azure Function App) and can also run locally over stdio. There is no web page.
 
-<!-- screenshot -->
+<img src="assets/mcp_example.png" alt="Claude Desktop using the TFL MCP tools" width="600"/>
 
 ## What it does
 

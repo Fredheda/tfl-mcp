@@ -1,75 +1,74 @@
-# TFL API (with MCP)
+# TFL MCP
 
-Welcome to the TFL API project! 🚇
+Live London transport data as MCP tools, plus an A2A agent that answers questions with them.
 
-This project implements an MCP server. Its purpose is to fetch and process real-time London transport data from the official TFL API: line status, station lookup, journey planning that reflects live disruption, and next-train arrivals.
+**Status:** the tools are served as a hosted MCP server (an Azure Function App) and can also run locally over stdio. There is no web page.
 
+<!-- screenshot -->
 
-<div align="center">
-<img src="assets/mcp_example.png" alt="Alt text" width="600" height=600/>
-</div>
-## Features
-- Fetches live status for London Underground, DLR, Elizabeth line, and
-  Overground lines
-- Five tools: `get_tfl_status` for named lines, `get_disrupted_lines` for
-  "what's disrupted right now" without naming a line first,
-  `find_station` (name → ids), `plan_journey` (routes that reflect live
-  disruption, leaving now, at a time, or arriving by a time) and
-  `get_arrivals` (next trains at a station)
-- Processes and formats the data as JSON
-- Exposed as an MCP (Model Context Protocol) tool, runnable locally over
-  stdio or as a hosted Azure Function App — see `DEPLOYMENT.md`
-- A LangGraph agent (`tfl_status_agent/`) that answers line-status,
-  journey and arrivals questions by calling the MCP tools above (plus a
-  local `get_current_time` tool for relative times), exposed over the A2A
-  protocol
-  with live progress streaming (reasoning, tool calls, results) and
-  deployable as its own Entra-gated Container App — see `DEPLOYMENT.md`
+## What it does
 
-## Quickstart
+Five tools give any MCP client (Claude Desktop, an agent, your own code) live data from the official TfL API for the Underground, DLR, Overground and Elizabeth line:
 
-### 1. Clone the repo
-```sh
-git clone https://github.com/Fredheda/tfl-mcp.git
-cd tfl-mcp
+- **Check a line.** `get_tfl_status` reports the current status of one or more named lines, such as `victoria`, `dlr` or `mildmay`.
+- **See what is broken right now.** `get_disrupted_lines` lists every line that is currently disrupted, without needing to name a line first.
+- **Find a station.** `find_station` turns a place name into the station and journey ids the other tools need.
+- **Plan a journey around disruption.** `plan_journey` returns up to three routes between two stations that reflect live disruption, leaving now, at a given time, or arriving by a given time, with an optional step-free preference.
+- **Catch the next train.** `get_arrivals` lists the next trains arriving at a station, soonest first.
+
+On top of the tools sits a conversational agent in `tfl_status_agent/`. It answers questions such as "fastest way from Waterloo to King's Cross right now" or "next Victoria line trains at Oxford Circus" by calling the tools above, and it has one local tool, `get_current_time`, so it can resolve relative times like "tomorrow at 9am". It speaks the A2A protocol, streams its progress (reasoning summaries, tool calls and results) while a task runs, and can be deployed as its own Container App gated by Microsoft Entra ID.
+
+## How it works
+
+```mermaid
+flowchart LR
+    Client["MCP client<br/>(Claude Desktop, other apps)"] -->|stdio| Local["tfl.py<br/>FastMCP server"]
+    Client -->|MCP over HTTPS + key| Func["Azure Function App<br/>MCP tool triggers"]
+    Caller["A2A caller"] -->|A2A, Entra token| Agent["tfl_status_agent<br/>LangGraph agent"]
+    Agent -->|MCP tools| Func
+    Local --> Core["tfl_status.py<br/>shared TfL logic"]
+    Func --> Core
+    Core --> TfL[("TfL API")]
 ```
 
-## MCP Server Usage
+The TfL logic lives in one module, `tfl_status.py`, and is exposed twice: by `tfl.py` as a local stdio server and by `function_app/` as the hosted server. The Function App is reachable on a public URL, but every MCP call needs a system key; that is acceptable because the data it serves is public.
 
-This project is a ready-to-run MCP (Model Context Protocol) server. When you run `python tfl.py`, it starts an MCP server exposing five tools:
+The agent loads its tool schemas from the hosted MCP server when it starts, runs a LangGraph tool-calling loop on an OpenAI reasoning model, and publishes each step as an A2A status update before returning the final answer.
 
-- `get_tfl_status(lines)` — status for one or more named line ids (e.g. `victoria`, `dlr`, `mildmay`).
-- `get_disrupted_lines(modes)` — every line currently disrupted, across tube/DLR/Overground/Elizabeth line by default, with no line names required.
-- `find_station(query, modes)` — an `id` and a `journey_id` per station for a place name; needed before the next two.
-- `plan_journey(origin, destination, preference, step_free, when, when_is)` — up to 3 journey options between two `journey_id`s from `find_station`, reflecting live disruption. `when` is local London time (`2026-09-21T09:00`); omit it to travel now.
-- `get_arrivals(stop_id, line_ids)` — the next trains arriving at a station, soonest first.
+### Try it with Claude Desktop
 
-Connect to the running server with:
+Add the local stdio server to your Claude Desktop MCP configuration, pointing at a clone of this repo:
 
-- **Claude Desktop**: Add a new MCP server and point it to your running instance.
-- **Your own MCP client**: See the [Model Context Protocol documentation](https://modelcontextprotocol.io/docs/develop/build-server) for details.
-
-
-
-### 2. Set up your environment (Recommended: [Poetry](https://python-poetry.org/))
-```sh
-poetry install
+```json
+{
+  "mcpServers": {
+    "tfl": {
+      "command": "poetry",
+      "args": ["run", "python", "tfl.py"],
+      "cwd": "/path/to/tfl-mcp"
+    }
+  }
+}
 ```
 
-This project uses Poetry (`pyproject.toml` + `poetry.lock`) for dependency
-management.
+## Tech stack
 
-### 3. Run the script
-```sh
-poetry run python tfl.py
-```
+- **MCP** (Python `mcp` SDK, FastMCP): the tool protocol, served over stdio locally.
+- **Azure Functions** (Flex Consumption, MCP extension): the hosted MCP server.
+- **LangGraph and LangChain**: the tool-calling agent loop.
+- **OpenAI Responses API**: the agent's reasoning model.
+- **A2A** (`a2a-sdk`, FastAPI, uvicorn): the agent-to-agent interface with streaming.
+- **Azure Container Apps and Microsoft Entra ID**: hosting and token-based access control for the agent.
+- **Bicep and GitHub Actions**: infrastructure as code, CI and manual deploys (OIDC, no stored credentials).
+- **pytest, ruff, pyright**: tests, linting and type checking.
 
-## Checks
+## Repository layout
 
-```sh
-poetry run pytest tests/ -v
-poetry run ruff check . && poetry run ruff format --check .
-poetry run pyright
-```
+- `tfl.py`, `tfl_status.py`: local MCP server and the shared TfL logic.
+- `function_app/`: the hosted MCP server.
+- `tfl_status_agent/`: the A2A agent.
+- `infra/`, `scripts/`: Bicep and deploy tooling.
 
-The Azure Function App has its own isolated environment and tests; see `CLAUDE.md`. All of these also run in GitHub Actions (`.github/workflows/ci.yml`) on every pull request and every push to `main`, as three checks: `backend-test`, `backend-lint`, and `function-app-test`.
+---
+
+Run it locally: [docs/development.md](docs/development.md). Deploy it: [deployment/](deployment/README.md).

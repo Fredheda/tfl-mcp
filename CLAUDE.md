@@ -28,12 +28,11 @@ invoke it before replying, not just when asked.
 
 ## What this is
 
-TFL MCP tools: `get_tfl_status` (named lines), `get_disrupted_lines` (all
-currently-disrupted lines), `find_station`, `plan_journey` (routes reflecting
-live disruption; now / depart-at / arrive-by) and `get_arrivals`. Runs locally
-over stdio (`tfl.py`) or deployed as an Azure Function App (`function_app/`).
-`tfl_status_agent/` is an A2A agent over these tools; it adds a local
-`get_current_time` tool.
+TFL MCP tools (`get_tfl_status`, `get_disrupted_lines`, `find_station`,
+`plan_journey`, `get_arrivals`), run locally over stdio (`tfl.py`) or deployed
+as an Azure Function App (`function_app/`). `tfl_status_agent/` is an A2A agent
+over these tools; it adds a local `get_current_time` tool. The README has the
+overview; local setup is in `docs/development.md`; deploys are in `deployment/`.
 
 ## Commands
 
@@ -48,39 +47,35 @@ Run from the repo root unless noted. Python 3.13, Poetry 2.x.
 | Lint + format check | `poetry run ruff check . && poetry run ruff format --check .` |
 | Type check | `poetry run pyright` |
 
-`function_app/` is a separate deployable. It has its own isolated venv, never
-installed through Poetry: `python3.13 -m venv function_app/.venv &&
-function_app/.venv/bin/pip install -r function_app/requirements.txt pytest==9.1.1`.
-`function_app/tfl_status.py` is a gitignored copy of the root `tfl_status.py`,
-made by `scripts/deploy-mcp-tools.sh`; the root file is the single source of truth.
+CI runs all of these on every PR as `backend-test`, `backend-lint` and
+`function-app-test`; `security.yml` and `claude-review.yml` are described in
+`deployment/github.md`.
 
-CI (`.github/workflows/ci.yml`) runs all of the above on every pull request and
-every push to `main`, as three checks: `backend-test`, `backend-lint`, and
-`function-app-test`.
+Env var names (`.env`, see `.env.example`): `OPENAI_API_KEY`, `FUNCTION_APP_URL`,
+`FUNCTION_MCP_KEY`; after `scripts/setup-agent-auth.sh` also `AGENT_AAD_CLIENT_ID`
+and `AGENT_AAD_TENANT_ID`.
 
-`.github/workflows/security.yml` runs on every PR, every push to `main` and
-weekly: `gitleaks` (secret scan, blocks the PR), `pip-audit` (advisory on PRs,
-fails on the weekly run), `bandit` (HIGH severity only) and `codeql` (results
-in the Security tab). The pip-audit step ignores two advisories that only a
-bump of the pinned `langchain` / `langgraph` fixes; remove the `--ignore-vuln`
-flags when those pins move. Run locally: `poetry run pip install pip-audit
-bandit`, then `poetry run pip-audit --local` and `poetry run bandit -r . -lll
--x ./tests,./function_app/tests,./.venv,./function_app/.venv`; gitleaks via
-`gitleaks git . --redact`.
+## Gotchas
 
-`.github/workflows/claude-review.yml` posts an AI security-first review when a
-PR is opened and on every push to it; the repo owner can also request one by
-commenting `@claude`. It is comment-only and authenticates with the
-`CLAUDE_CODE_OAUTH_TOKEN` repo secret, which expires about 2027-10-24: renew
-with `claude setup-token`, then `gh secret set CLAUDE_CODE_OAUTH_TOKEN`. If
-subscription auth is refused, switch the action input to `anthropic_api_key`.
+- `function_app/` is a separate deployable with its own isolated venv, never
+  installed through Poetry: `python3.13 -m venv function_app/.venv &&
+  function_app/.venv/bin/pip install -r function_app/requirements.txt pytest==9.1.1`.
+- `function_app/tfl_status.py` is a gitignored copy of the root `tfl_status.py`,
+  made by `scripts/deploy-mcp-tools.sh`. The root file is the single source of truth.
+- The repo pins `mcp[cli]<2.0.0` on purpose: `langchain-mcp-adapters` (latest
+  `0.3.2`) hard-pins `mcp<2.0.0`, and the agent and `scripts/verify_deployed_mcp.py`
+  use it via `MultiServerMCPClient`. Do not move to `mcp` v2 until the adapter does.
+- `tfl_status_agent/server.py` calls `load_dotenv()` before its other imports
+  because they read env vars at import time; ruff's E402 is ignored for that
+  file in `pyproject.toml`.
+- After adding or changing tools, deploy the Function App first, then the
+  agent (it fetches tool schemas at startup; its system prompt is baked into the image).
+- The pip-audit step in `security.yml` ignores two advisories fixed only by
+  bumping the pinned `langchain` / `langgraph`; remove the `--ignore-vuln` flags
+  when those pins move.
 
-## Deploying
+## Pointers
 
-Infra: `infra/deploy.sh`. Code: the manual **Deploy functions** workflow on
-GitHub (`main` only; rollback = an older SHA), with `scripts/deploy-mcp-tools.sh`
-as the laptop fallback. See `DEPLOYMENT.md`.
-
-`tfl_status_agent/server.py` calls `load_dotenv()` before its other imports
-because they read env vars at import time; ruff's E402 is ignored for that
-file in `pyproject.toml`.
+- Local dev, the agent's local testing, security checks: `docs/development.md`.
+- Deploying (Function App via the manual **Deploy functions** workflow, agent
+  via `scripts/ship.sh`, rollback, verification, expiry dates): `deployment/`.

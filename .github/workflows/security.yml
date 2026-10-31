@@ -1,16 +1,18 @@
 name: Security
 
+# Pull requests and a weekly run; a merge to main starts nothing. gitleaks runs
+# on every push to a PR, draft or not. The other scans run when the PR is
+# marked ready and on the weekly schedule, which also scans the full history.
 on:
   pull_request:
-  push:
-    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
   # Advisories appear without any code change, so the dependency audits also
   # run weekly.
   schedule:
     - cron: "23 5 * * 1"
 
-# A new push to the same PR cancels the run that is still going. Pushes to
-# main and scheduled runs are never cancelled.
+# A new push to the same PR cancels the run that is still going. Scheduled
+# runs are never cancelled.
 concurrency:
   group: security-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -28,8 +30,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      # PRs scan only the commits they add; pushes to main and the weekly run
-      # scan the whole history.
+      # PRs scan only the commits they add; the weekly run scans the whole
+      # history.
       - name: Scan for secrets
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -45,6 +47,7 @@ jobs:
   # Advisory on PRs (a new advisory against an old dependency must not fail an
   # unrelated PR); the weekly run fails visibly.
   pip-audit:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: ${{ github.event_name == 'pull_request' }}
@@ -70,6 +73,7 @@ jobs:
 
   # HIGH severity only: bandit's lower levels are mostly noise for this code.
   bandit:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -81,6 +85,7 @@ jobs:
 
   # Findings appear in the repo's Security tab, not as a failing check.
   codeql:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

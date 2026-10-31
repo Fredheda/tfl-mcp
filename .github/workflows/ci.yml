@@ -1,21 +1,51 @@
 name: CI
 
+# Run the same checks locally, in the same order, with scripts/ci-local.sh
+# before `gh pr ready`.
+#
+# Pull requests only: a merge to main starts no CI, because the PR already
+# ran it. A draft PR runs only the light jobs; the heavy ones run when the PR
+# is marked ready. Docs-only changes skip every job but `changes`; a skipped
+# job counts as a pass for a required check.
 on:
   pull_request:
-  push:
-    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
 
-# A new push to the same PR cancels the run that is still going. Pushes to
-# main are never cancelled, so every commit on main gets a result.
+# A new push to the same PR cancels the run that is still going.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  backend-test:
+  # Decides whether the change touches anything but documentation.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Any changed file that is not Markdown or under docs/ counts as code.
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -qvE '(\.md$|^docs/)'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Light: tests, lint and type check share one Poetry install.
+  backend:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -28,26 +58,16 @@ jobs:
           cache: poetry
       - run: poetry install --no-interaction
       - run: poetry run pytest tests/ -v
-
-  backend-lint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install Poetry
-        run: pipx install "poetry>=2.0,<3.0"
-      - uses: actions/setup-python@v7
-        with:
-          python-version-file: .python-version
-          cache: poetry
-      - run: poetry install --no-interaction
       - run: poetry run ruff check .
       - run: poetry run ruff format --check .
       - run: poetry run pyright
 
-  # function_app/ is a separate deployable with its own dependencies; test it
-  # in an isolated venv, never in the Poetry environment.
+  # Heavy: runs only on a PR that is ready. function_app/ is a separate
+  # deployable with its own dependencies; test it in an isolated venv, never
+  # in the Poetry environment.
   function-app-test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

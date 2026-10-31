@@ -2,11 +2,13 @@
 
 ## Checks on every pull request
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`, as three checks: `backend-test`, `backend-lint` and `function-app-test`.
+Pull requests are opened as drafts. A draft runs only the light jobs; marking it ready (`gh pr ready`) starts the heavy ones and the AI review. A merge to `main` starts no workflow. Run `scripts/ci-local.sh` (every check `ci.yml` runs, same order) before `gh pr ready`.
 
-`.github/workflows/security.yml` runs on every PR, every push to `main` and weekly: `gitleaks` (secret scan, blocks the PR), `pip-audit` (advisory on PRs, fails on the weekly run), `bandit` (HIGH severity only) and `codeql` (results in the Security tab). The pip-audit step ignores two advisories that only a bump of the pinned `langchain` / `langgraph` fixes; remove the `--ignore-vuln` flags when those pins move.
+`.github/workflows/ci.yml` runs on pull requests only. A `changes` job skips the other jobs for documentation-only changes (Markdown and `docs/`); a skipped job counts as a pass for a required check. `backend` (tests, ruff, pyright) runs on drafts too; `function-app-test` runs once the PR is ready.
 
-`.github/workflows/claude-review.yml` posts an AI security-first review when a PR is opened and on every push to it. The repo owner can also request one by commenting `@claude`. It is comment-only. Besides the security-first review, every review runs a documentation check: it reports documentation that now contradicts the change, changes with no matching documentation update, and stale names, paths, counts or versions, or says "Docs: current". Its token expiry is in [expirations.md](expirations.md).
+`.github/workflows/security.yml` runs on PRs and weekly: `gitleaks` (secret scan, blocks the PR) on every push to a PR, and on ready PRs `pip-audit` (advisory on PRs, fails on the weekly run), `bandit` (HIGH severity only) and `codeql` (results in the Security tab). The weekly run scans the full history. The pip-audit step ignores two advisories that only a bump of the pinned `langchain` / `langgraph` fixes; remove the `--ignore-vuln` flags when those pins move.
+
+`.github/workflows/claude-review.yml` posts an AI security-first review when a PR is ready (not a draft) and on every push to it. The repo owner can also request one by commenting `@claude`. It is comment-only. Besides the security-first review, every review runs a documentation check: it reports documentation that now contradicts the change, changes with no matching documentation update, and stale names, paths, counts or versions, or says "Docs: current". Its token expiry is in [expirations.md](expirations.md).
 
 ## Function App: the Deploy functions workflow
 

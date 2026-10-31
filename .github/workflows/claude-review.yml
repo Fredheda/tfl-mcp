@@ -66,6 +66,11 @@ jobs:
             handling of the TfL API key, validation of tool inputs, and Azure
             secrets or keys in infra and deploy scripts.
 
+            Documentation in this repo: README.md, CLAUDE.md, docs/development.md
+            and the files under deployment/ (README.md, github.md, infra.md,
+            local.md, operations.md, expirations.md). There is no DEPLOYMENT.md
+            or EXPIRATIONS.md at the repo root.
+
             Check security first:
             - committed .env files, key files, or .pem files
             - hardcoded secrets, tokens, or connection strings

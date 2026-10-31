@@ -1,8 +1,10 @@
 name: Security
 
-# Pull requests and a weekly run; a merge to main starts nothing. gitleaks runs
-# on every push to a PR, draft or not. The other scans run when the PR is
-# marked ready and on the weekly schedule, which also scans the full history.
+# Pull requests and a weekly run; a merge to main starts nothing. gitleaks and
+# workflow-lint run on every push to a PR, draft or not. The other scans run
+# when the PR is marked ready and on the weekly schedule, which also scans the
+# full history. The ruleset on main requires gitleaks, bandit and
+# workflow-lint; pip-audit and codeql are advisory.
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
@@ -43,6 +45,18 @@ jobs:
           fi
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
             git /repo --redact --no-banner --verbose "${log_opts[@]}"
+
+  # Blocks the PR. Lints the workflow files with the pinned actionlint image.
+  workflow-lint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Lint workflows
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 \
+            -color
 
   # Advisory on PRs (a new advisory against an old dependency must not fail an
   # unrelated PR); the weekly run fails visibly.

@@ -54,8 +54,9 @@ Run from the repo root unless noted. Python 3.13, Poetry 2.x.
 
 Open PRs as drafts (`gh pr create --draft`). A draft runs only the light CI;
 run `scripts/ci-local.sh`, then `gh pr ready` starts the rest and the AI
-review. CI runs on PRs only, as `backend` and `function-app-test`; the
-workflows are described in `deployment/github.md`.
+review. CI runs on PRs only, as `backend` and `function-app-test`. The `main`
+ruleset requires those two plus `gitleaks`, `bandit` and `workflow-lint` from
+`security.yml`; the workflows are described in `deployment/github.md`.
 
 Env var names (`.env`, see `.env.example`): `OPENAI_API_KEY`, `FUNCTION_APP_URL`,
 `FUNCTION_MCP_KEY`; after `scripts/setup-agent-auth.sh` also `AGENT_AAD_CLIENT_ID`

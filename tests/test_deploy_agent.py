@@ -16,6 +16,7 @@ variables:
 - FAKE_POLICY_NAMES: branch policies of the `production` environment, one per line.
 """
 
+import json
 import os
 import subprocess
 from dataclasses import dataclass
@@ -85,6 +86,8 @@ printf '%s' "${codes[$idx]}"
 echo $(( n + 1 )) > "$counter"
 """
 
+# A user lookup prints the id 77542239. A request body given on stdin
+# (`--input -`) is kept in `$FAKE_LOG.gh-body`.
 FAKE_GH = r"""#!/usr/bin/env bash
 echo "$*" >> "$FAKE_LOG.gh"
 case "$*" in
@@ -92,6 +95,8 @@ case "$*" in
     case "$*" in *"-X POST"*) exit 0 ;; esac
     printf '%s' "${FAKE_POLICY_NAMES:-}"
     exit 0 ;;
+  *" users/"*) echo 77542239; exit 0 ;;
+  *"--input -"*) cat >> "$FAKE_LOG.gh-body"; exit 0 ;;
 esac
 exit 0
 """
@@ -498,13 +503,21 @@ def test_setup_github_agent_trusts_only_the_production_environment(
     assert not any("refs/heads/main" in c for c in fakes.calls)
 
 
+def environment_body(fakes: Fakes) -> dict[str, object]:
+    """The JSON the script sends to `PUT .../environments/production`."""
+    return json.loads(Path(f"{fakes.log}.gh-body").read_text())
+
+
 def test_setup_github_agent_restricts_the_environment_to_main(fakes: Fakes) -> None:
     result = fakes.run("setup-github-agent.sh")
     assert result.returncode == 0, result.stderr
     (put,) = [
         c for c in fakes.gh_calls if "-X PUT" in c and "environments/production" in c
     ]
-    assert "deployment_branch_policy[custom_branch_policies]=true" in put
+    assert environment_body(fakes)["deployment_branch_policy"] == {
+        "protected_branches": False,
+        "custom_branch_policies": True,
+    }
     posts = [
         c
         for c in fakes.gh_calls
@@ -512,6 +525,20 @@ def test_setup_github_agent_restricts_the_environment_to_main(fakes: Fakes) -> N
     ]
     assert len(posts) == 1
     assert "name=main" in posts[0]
+
+
+def test_setup_github_agent_makes_the_repo_owner_the_required_reviewer(
+    fakes: Fakes,
+) -> None:
+    # Every deploy then waits for the owner's approval in GitHub, and no admin
+    # can bypass the gate.
+    result = fakes.run("setup-github-agent.sh")
+    assert result.returncode == 0, result.stderr
+    assert "api users/Fredheda --jq .id" in fakes.gh_calls
+    body = environment_body(fakes)
+    assert body["reviewers"] == [{"type": "User", "id": 77542239}]
+    assert body["prevent_self_review"] is False
+    assert body["can_admins_bypass"] is False
 
 
 def test_setup_github_agent_adds_no_second_main_policy(fakes: Fakes) -> None:

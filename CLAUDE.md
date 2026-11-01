@@ -102,3 +102,7 @@ and `AGENT_AAD_TENANT_ID`.
   via the manual **Deploy agent** workflow, which builds the image if needed;
   `scripts/ship.sh` is the laptop fallback; rollback, verification, expiry
   dates): `deployment/`.
+- Every deploy waits in GitHub for the owner's approval (`production`
+  requires him as reviewer). Run one only on the owner's explicit yes for that
+  specific deploy, and never approve a waiting deployment. Rule: root
+  `CLAUDE.md`, "Deploy only on the owner's explicit yes for that deploy".

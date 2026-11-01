@@ -5,6 +5,7 @@ name: Deploy agent
 # or a rollback to an already-built commit builds nothing), then rolls
 # ca-tfl-status-agent to it. CI never builds and a merge never deploys.
 # Run it from the Actions tab or: gh workflow run deploy-agent.yml --ref main
+# The run waits in the production environment until the repo owner approves it.
 # Rollback is the same button with an older commit SHA.
 on:
   workflow_dispatch:

@@ -21,6 +21,8 @@ gh workflow run deploy-functions.yml --ref main                    # head of mai
 gh workflow run deploy-functions.yml --ref main -f sha=<full sha>  # rollback
 ```
 
+The run stops at `waiting` until the owner approves it: Actions, the run, **Review deployments**, approve. The owner is the only required reviewer of `production`, and admins cannot bypass it. An agent never approves a waiting deployment. `gh run watch` keeps polling while the run waits; run it again after the approval.
+
 Before it logs in to Azure it checks that the SHA is a full lowercase SHA, is on `main`, and has `function_app/` and `tfl_status.py`. It then copies `tfl_status.py` into the package like `deploy-mcp-tools.sh` does, zips `function_app/`, and pushes the zip with `az functionapp deployment source config-zip --build-remote true`. The run ends by waiting until the Function App lists its functions and prints them in the run summary.
 
 ### One-time setup
@@ -31,7 +33,7 @@ Needs rights to create identities and assign roles, and admin on the GitHub repo
 ./scripts/setup-github-deploy.sh
 ```
 
-It creates the managed identity `id-tfl-mcp-gh-deploy` with Website Contributor on `func-tfl-mcp` only, a federated credential that trusts only the `production` environment of this repo, restricts that environment to `main`, and stores the Azure IDs the workflow reads as repo secrets (identifiers, not credentials, but the logs of this public repo are public and a secret's value is masked there). No credential is stored in GitHub. Re-running it changes nothing.
+It creates the managed identity `id-tfl-mcp-gh-deploy` with Website Contributor on `func-tfl-mcp` only, a federated credential that trusts only the `production` environment of this repo, restricts that environment to `main`, makes the owner its required reviewer, and stores the Azure IDs the workflow reads as repo secrets (identifiers, not credentials, but the logs of this public repo are public and a secret's value is masked there). No credential is stored in GitHub. Re-running it changes nothing.
 
 ### Limits
 
@@ -49,6 +51,8 @@ gh workflow run deploy-agent.yml --ref main                    # head of main
 gh workflow run deploy-agent.yml --ref main -f sha=<full sha>  # rollback
 ```
 
+The same approval gate as **Deploy functions** applies: the run waits until the owner approves it under **Review deployments**.
+
 Steps, in order:
 
 1. `scripts/resolve-agent-sha.sh` checks the SHA (full lowercase, a commit, on `main`) before any Azure login.
@@ -65,7 +69,7 @@ Needs rights to create identities and assign roles, and admin on the GitHub repo
 ./scripts/setup-github-agent.sh
 ```
 
-It creates two managed identities. `id-tfl-agent-gh-build` can push images (AcrPush, Container Registry Tasks Contributor on the registry). `id-tfl-agent-gh-deploy` can roll this one app (Container Apps Contributor on `ca-tfl-status-agent`, Managed Identity Operator on `id-tfl-status-acrpull`) and lock tags (AcrPush on the registry). Both trust only the `production` environment of this repo, which is restricted to `main`. The Azure IDs are stored as the repo secrets `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_BUILD_CLIENT_ID` and `AZURE_AGENT_DEPLOY_CLIENT_ID`. The Function App identity and its secret are untouched. Re-running changes nothing.
+It creates two managed identities. `id-tfl-agent-gh-build` can push images (AcrPush, Container Registry Tasks Contributor on the registry). `id-tfl-agent-gh-deploy` can roll this one app (Container Apps Contributor on `ca-tfl-status-agent`, Managed Identity Operator on `id-tfl-status-acrpull`) and lock tags (AcrPush on the registry). Both trust only the `production` environment of this repo, which is restricted to `main` and has the owner as required reviewer. The Azure IDs are stored as the repo secrets `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_BUILD_CLIENT_ID` and `AZURE_AGENT_DEPLOY_CLIENT_ID`. The Function App identity and its secret are untouched. Re-running changes nothing.
 
 ### Registry clean-up
 

@@ -26,6 +26,10 @@ summary: `gh pr view <n> --comments`) and address each one, minor notes and
 documentation findings included, before handing the PR URL over for review.
 Address means fix it in the PR, or reply on the PR with the reason it stays.
 Never skip one silently. Each push triggers a new review: read it again.
+Keep PRs small: one concern, under about 400 hand-written lines; see the root
+`CLAUDE.md`, "Small PRs, one ticket and one plan per PR".
+Build test first: a failing test before the code, no duplicate coverage; see
+the root `CLAUDE.md`, "Test-driven, with sensible coverage across the system".
 
 **Response style:** Use the `caveman` skill. Talk terse at all times, with or
 without the skill: chat, Jira comments, GitHub PR and issue text, commits,

@@ -27,7 +27,7 @@ A LangGraph agent exposed over A2A. It runs as its own Azure resource, `ca-tfl-s
 
 The agent streams: its card advertises `capabilities.streaming: true`, and while a task runs it publishes `WORKING` status updates (one per reasoning summary, tool call, tool result, and the final "composing answer" step, with the kind in the event's `metadata.kind`) before the final artifact. A streaming-capable caller sees them as they happen; a non-streaming caller gets the same final task in one response. The model is `gpt-5.6-luna` on the OpenAI Responses API with reasoning summaries enabled, which is what produces the reasoning lines.
 
-The design is written up in the spec `docs/tfl-mcp/specs/2026-09-06-tfl-status-agent-design.md` (author's workspace notes, not in this repo).
+The design is written up in the spec `docs/tfl-mcp/specs/completed/2026-09-06-tfl-status-agent-design.md` (author's workspace notes, not in this repo).
 
 ### Entra auth setup
 

@@ -102,7 +102,7 @@ output functionAppHostname string = functionApp.properties.defaultHostName
 // environment. Access control is Microsoft Entra ID token validation via
 // Container Apps' built-in auth (authConfig below), not network isolation
 // and not application code -- see
-// docs/tfl-mcp/specs/2026-09-06-tfl-status-agent-design.md.
+// docs/tfl-mcp/specs/completed/2026-09-06-tfl-status-agent-design.md.
 
 @description('Existing Azure Container Registry name (shared across this workspace).')
 param acrName string = 'acrchatbotfredheda'

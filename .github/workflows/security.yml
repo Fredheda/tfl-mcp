@@ -83,7 +83,10 @@ jobs:
       # function_app/ has its own dependencies; audit them in their own venv,
       # never in the Poetry environment.
       - name: Audit function_app requirements
-        run: pipx run pip-audit==2.10.1 -r function_app/requirements.txt
+        # pipx defaults to the runner's system Python (3.12), which cannot
+        # resolve packages that need 3.13 (azure-functions 2.x); run it on the
+        # interpreter setup-python installed.
+        run: pipx run --python "$(which python)" pip-audit==2.10.1 -r function_app/requirements.txt
 
   # HIGH severity only: bandit's lower levels are mostly noise for this code.
   bandit:
@@ -95,7 +98,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
-      - run: pipx run bandit==1.9.4 -r . -lll -x ./tests,./function_app/tests,./.venv,./function_app/.venv
+      # Same interpreter as the code under scan (3.13), not pipx's default.
+      - run: pipx run --python "$(which python)" bandit==1.9.4 -r . -lll -x ./tests,./function_app/tests,./.venv,./function_app/.venv
 
   # Findings appear in the repo's Security tab, not as a failing check.
   codeql:

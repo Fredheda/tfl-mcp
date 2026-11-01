@@ -2,8 +2,9 @@ name: Security
 
 # Pull requests and a weekly run; a merge to main starts nothing. gitleaks and
 # workflow-lint run on every push to a PR, draft or not. The other scans run
-# when the PR is marked ready and on the weekly schedule, which also scans the
-# full history. The ruleset on main requires gitleaks, bandit and
+# when the PR is marked ready, on the weekly schedule and on demand
+# (`gh workflow run security.yml --ref main`); those two also scan the full
+# history, and workflow-lint is PR-only. The ruleset on main requires gitleaks, bandit and
 # workflow-lint; pip-audit and codeql are advisory.
 on:
   pull_request:
@@ -12,6 +13,7 @@ on:
   # run weekly.
   schedule:
     - cron: "23 5 * * 1"
+  workflow_dispatch:
 
 # A new push to the same PR cancels the run that is still going. Scheduled
 # runs are never cancelled.

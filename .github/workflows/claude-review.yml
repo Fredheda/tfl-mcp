@@ -95,6 +95,20 @@ jobs:
             stale names, paths, counts or versions. Cite file and line. If
             everything is current, say so in one line ("Docs: current").
 
+            PR size check (every PR, advisory). Count hand-written changed
+            lines; exclude lockfiles (poetry.lock), fixtures and generated
+            files. If the count exceeds about 400, or the PR mixes more than
+            one concern, ask for a split into one PR per concern and name the
+            split. Otherwise say so in one line ("Size: OK, <n> lines").
+
+            Tests check (every PR, advisory). If the PR changes behavior in
+            code, check that tests for that behavior are in the same PR, and
+            from the commit order that they look written before or with the
+            code. Flag a behavior change with no test, and a test that only
+            repeats coverage another test already has. Docs-only or
+            config-only PRs need no tests; say so in one line ("Tests: n/a").
+            Otherwise say so in one line ("Tests: OK").
+
             Report only issues you are confident about, with file and line.
             If you find no security issues, say "No security issues found."
             explicitly. Do not invent findings.

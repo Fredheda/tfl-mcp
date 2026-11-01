@@ -6,7 +6,7 @@ Pull requests are opened as drafts. A draft runs only the light jobs; marking it
 
 `.github/workflows/ci.yml` runs on pull requests only. A `changes` job skips the other jobs for documentation-only changes (Markdown and `docs/`); a skipped job counts as a pass for a required check. `backend` (tests, ruff, pyright) runs on drafts too; `function-app-test` runs once the PR is ready.
 
-`.github/workflows/security.yml` runs on PRs and weekly: `gitleaks` (secret scan) and `workflow-lint` (actionlint, pinned image) on every push to a PR, and on ready PRs `pip-audit` (advisory on PRs, fails on the weekly run), `bandit` (HIGH severity only) and `codeql` (results in the Security tab).
+`.github/workflows/security.yml` runs on PRs, weekly and on demand (`gh workflow run security.yml --ref main`; the weekly and on-demand runs scan the full history and skip `workflow-lint`): `gitleaks` (secret scan) and `workflow-lint` (actionlint, pinned image) on every push to a PR, and on ready PRs `pip-audit` (advisory on PRs, fails on the weekly run), `bandit` (HIGH severity only) and `codeql` (results in the Security tab).
 
 The `main` ruleset requires five checks: `backend`, `function-app-test`, `gitleaks`, `bandit` and `workflow-lint`. `pip-audit` and `codeql` stay advisory, so a new advisory against an old dependency never blocks an unrelated PR. A draft cannot merge, and `bandit` and `function-app-test` skip on drafts and run when the PR is ready. The weekly run scans the full history. The pip-audit step ignores two advisories that only a bump of the pinned `langchain` / `langgraph` fixes; remove the `--ignore-vuln` flags when those pins move.
 

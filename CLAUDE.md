@@ -1,42 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Repo-specific facts for Claude Code. The workspace `CLAUDE.md` (`../CLAUDE.md`) owns everything else: response style, git and worktrees, ways of working (tickets and tiers, production deploys, PR size, test first, the PR loop), tooling, Jira, specs and plans. Keep this file true.
 
-> This repo lives inside a multi-repo workspace with its own root `CLAUDE.md`
-> (`../CLAUDE.md`, one level up) covering workspace-wide conventions — where
-> specs/plans go, the git rule, shared MCP/skill usage. Keep that file's
-> per-project facts about this repo in sync whenever they drift from what's
-> true here.
-
-**Git:** you may run git freely up to a commit, and push a feature branch and
-open a PR. `fetch` and `pull` are fine too (default to `pull --ff-only`). Ask
-first for `rebase`, `reset`, force-push, deleting branches, or anything on
-`main`. Reviewing and merging PRs is the user's alone — hand over the PR URL.
-Other Claude sessions share this workspace: work in your own git worktree,
-never the main checkout. Create one with `git worktree add
-../.worktrees/<repo>-<slug> -b <branch> origin/main` (or the `EnterWorktree`
-tool) and remove it after the PR merges; details in the "Parallel sessions"
-section of the root `CLAUDE.md`. Commit messages are 2 lines at most, with no
-`Co-Authored-By` trailer. Full rule in the root `CLAUDE.md` linked above.
-PR titles and descriptions must not mention Claude Code or link the Claude
-session (no "Generated with Claude Code" footer).
-After opening a PR, wait for CI to pass (`gh pr checks --watch`), then read
-every automated review comment (inline: `gh api repos/Fredheda/tfl-mcp/pulls/<n>/comments`;
-summary: `gh pr view <n> --comments`) and address each one, minor notes and
-documentation findings included, before handing the PR URL over for review.
-Address means fix it in the PR, or reply on the PR with the reason it stays.
-Never skip one silently. Each push triggers a new review: read it again.
-Keep PRs small: one concern, up to about 20 changed files and under 5000
-changed lines; see the root `CLAUDE.md`, "Small PRs, one ticket and one plan
-per PR".
-Build test first: a failing test before the code, no duplicate coverage; see
-the root `CLAUDE.md`, "Test-driven, with sensible coverage across the system".
-
-**Response style:** Use the `caveman` skill. Talk terse at all times, with or
-without the skill: chat, Jira comments, GitHub PR and issue text, commits,
-specs, plans, docs. Short plain sentences, no filler. Keep code, commands and
-error strings exact. Security warnings and irreversible-action confirmations
-stay in full clear sentences. Details: workspace `CLAUDE.md`, "Response style".
+PR titles and descriptions never mention Claude Code. `scripts/ci-local.sh` is this repo's local CI script: green before `gh pr ready`.
 
 ## What this is
 
@@ -60,21 +26,21 @@ Run from the repo root unless noted. Python 3.13, Poetry 2.x.
 | Type check | `poetry run pyright` |
 | All CI checks | `scripts/ci-local.sh` (the gate before `gh pr ready`) |
 
-Open PRs as drafts (`gh pr create --draft`). A draft runs only the light CI;
-run `scripts/ci-local.sh`, then `gh pr ready` starts the rest and the AI
-review. CI runs on PRs only, as `backend` and `function-app-test`. The `main`
-ruleset requires those two plus `gitleaks`, `bandit` and `workflow-lint` from
-`security.yml`; the workflows are described in `deployment/github.md`.
+CI runs on PRs only, as `backend` and `function-app-test`; `function-app-test`
+and the AI review wait for `gh pr ready`. The `main` ruleset requires those two
+plus `gitleaks`, `bandit` and `workflow-lint` from `security.yml`. The
+workflows, the review and the local security commands: `deployment/github.md`
+and `docs/development.md`.
 
-Env var names (`.env`, see `.env.example`): `OPENAI_API_KEY`, `FUNCTION_APP_URL`,
-`FUNCTION_MCP_KEY`; after `scripts/setup-agent-auth.sh` also `AGENT_AAD_CLIENT_ID`
-and `AGENT_AAD_TENANT_ID`.
+Env var names (`.env`, see `.env.example`; meanings in `docs/development.md`):
+`OPENAI_API_KEY`, `FUNCTION_APP_URL`, `FUNCTION_MCP_KEY`, optional
+`TFL_STATUS_AGENT_PUBLIC_URL`; after `scripts/setup-agent-auth.sh` also
+`AGENT_AAD_CLIENT_ID` and `AGENT_AAD_TENANT_ID`, read by `infra/deploy.sh`.
 
 ## Gotchas
 
 - `function_app/` is a separate deployable with its own isolated venv, never
-  installed through Poetry: `python3.13 -m venv function_app/.venv &&
-  function_app/.venv/bin/pip install -r function_app/requirements.txt pytest==9.1.1`.
+  installed through Poetry (commands: `docs/development.md`, "Checks").
 - `function_app/tfl_status.py` is a gitignored copy of the root `tfl_status.py`,
   made by `scripts/deploy-mcp-tools.sh`. The root file is the single source of truth.
 - The repo pins `mcp[cli]<2.0.0` on purpose: `langchain-mcp-adapters` (latest
@@ -103,7 +69,6 @@ and `AGENT_AAD_TENANT_ID`.
   via the manual **Deploy agent** workflow, which builds the image if needed;
   `scripts/ship.sh` is the laptop fallback; rollback, verification, expiry
   dates): `deployment/`.
-- Every deploy waits in GitHub for the owner's approval (`production`
-  requires him as reviewer). Run one only on the owner's explicit yes for that
-  specific deploy, and never approve a waiting deployment. Rule: root
-  `CLAUDE.md`, "Deploy only on the owner's explicit yes for that deploy".
+- Every workflow run waits in GitHub for the owner's approval (`production`
+  requires him as reviewer; `gh run watch` keeps polling until his click).
+  Rule: workspace `CLAUDE.md`, "Production deploys".

@@ -95,11 +95,12 @@ jobs:
             stale names, paths, counts or versions. Cite file and line. If
             everything is current, say so in one line ("Docs: current").
 
-            PR size check (every PR, advisory). Count hand-written changed
-            lines; exclude lockfiles (poetry.lock), fixtures and generated
-            files. If the count exceeds about 400, or the PR mixes more than
-            one concern, ask for a split into one PR per concern and name the
-            split. Otherwise say so in one line ("Size: OK, <n> lines").
+            PR size check (every PR, advisory). Count changed files and
+            changed lines; exclude lockfiles (poetry.lock), fixtures and
+            generated files. If the count exceeds about 20 files or 5000
+            lines, or the PR mixes more than one concern, ask for a split
+            into one PR per concern and name the split. Otherwise say so in
+            one line ("Size: OK, <n> files, <n> lines").
 
             Tests check (every PR, advisory). If the PR changes behavior in
             code, check that tests for that behavior are in the same PR, and

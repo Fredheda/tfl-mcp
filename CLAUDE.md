@@ -26,8 +26,9 @@ summary: `gh pr view <n> --comments`) and address each one, minor notes and
 documentation findings included, before handing the PR URL over for review.
 Address means fix it in the PR, or reply on the PR with the reason it stays.
 Never skip one silently. Each push triggers a new review: read it again.
-Keep PRs small: one concern, under about 400 hand-written lines; see the root
-`CLAUDE.md`, "Small PRs, one ticket and one plan per PR".
+Keep PRs small: one concern, up to about 20 changed files and under 5000
+changed lines; see the root `CLAUDE.md`, "Small PRs, one ticket and one plan
+per PR".
 Build test first: a failing test before the code, no duplicate coverage; see
 the root `CLAUDE.md`, "Test-driven, with sensible coverage across the system".
 

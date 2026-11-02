@@ -17,6 +17,7 @@ Copy `.env.example` to `.env` (gitignored) at the repo root.
 | `FUNCTION_APP_URL` | The agent and `scripts/verify_deployed_mcp.py`: the hosted MCP server. The agent refuses to start without it. |
 | `FUNCTION_MCP_KEY` | The same callers: the MCP extension system key of the Function App. |
 | `TFL_STATUS_AGENT_PUBLIC_URL` | Optional. The URL the agent card advertises. Defaults to `http://localhost:8002`. |
+| `AGENT_AAD_CLIENT_ID`, `AGENT_AAD_TENANT_ID` | `infra/deploy.sh`, after `scripts/setup-agent-auth.sh` printed them. The agent's Entra app registration; not needed to run anything locally. |
 
 ## Install and run the MCP server
 
@@ -77,14 +78,14 @@ function_app/.venv/bin/pip install -r function_app/requirements.txt pytest==9.1.
 cd function_app && .venv/bin/pytest tests -v
 ```
 
-`function_app/tfl_status.py` is a gitignored copy of the root `tfl_status.py`, made by `scripts/deploy-mcp-tools.sh`. The root file is the single source of truth.
+The root `tfl_status.py` is the single source of truth; the Function App's copy and the other repo rules are in `CLAUDE.md`, "Gotchas".
 
 `scripts/ci-local.sh` runs all of the above in the order CI does and stops at the first failure; run it before `gh pr ready`. GitHub Actions runs the same checks on pull requests (drafts run only the light ones); see [deployment/github.md](../deployment/github.md).
 
 ### Security checks locally
 
 ```sh
-poetry run pip install pip-audit bandit
+poetry run pip install pip-audit==2.10.1 bandit==1.9.4
 poetry run pip-audit --local
 poetry run bandit -r . -lll -x ./tests,./function_app/tests,./.venv,./function_app/.venv
 gitleaks git . --redact
@@ -92,4 +93,4 @@ gitleaks git . --redact
 
 ## Changing tools
 
-After adding or changing a tool, deploy the Function App first, then the agent: the agent fetches tool schemas live at startup, and its system prompt is baked into the image. See [deployment/README.md](../deployment/README.md).
+Deploy the Function App first, then the agent (why: `CLAUDE.md`, "Gotchas"). How: [deployment/README.md](../deployment/README.md).

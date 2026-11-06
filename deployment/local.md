@@ -18,6 +18,8 @@ Code (whenever `tfl_status.py` or `function_app/function_app.py` changes):
 
 `deploy-mcp-tools.sh` copies the root `tfl_status.py` into `function_app/` (a gitignored copy) before packaging. For the first deploy sequence, see [infra.md](infra.md).
 
+Verified on 2026-11-06 with SCM and FTP basic auth disabled: the publish needs only the Azure CLI login.
+
 ## Agent (`ca-tfl-status-agent`)
 
 Infra (whenever `infra/main.bicep` changes) plus code (whenever `tfl_status_agent/` changes):

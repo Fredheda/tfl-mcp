@@ -32,6 +32,8 @@ plus `gitleaks`, `bandit` and `workflow-lint` from `security.yml`. The
 workflows, the review and the local security commands: `deployment/github.md`
 and `docs/development.md`.
 
+- **Merging:** the owner merges, except Dependabot patch or minor bumps that touch nothing under `.github/` and docs-only PRs (only `.md` files and `docs/`, never `CLAUDE.md`, `.claude/` or workflows): the coordinator merges those after review. Rules: workspace `CLAUDE.md`, Git.
+
 Env var names (`.env`, see `.env.example`; meanings in `docs/development.md`):
 `OPENAI_API_KEY`, `FUNCTION_APP_URL`, `FUNCTION_MCP_KEY`, optional
 `TFL_STATUS_AGENT_PUBLIC_URL`; after `scripts/setup-agent-auth.sh` also

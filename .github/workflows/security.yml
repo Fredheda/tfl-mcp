@@ -77,11 +77,8 @@ jobs:
           cache: poetry
       - run: poetry install --no-interaction
       - run: poetry run pip install pip-audit==2.10.1
-      # Both ignored advisories are fixed only by bumping langchain (pinned
-      # ==1.2.10 in pyproject.toml) and langgraph-sdk (held by the pinned
-      # langgraph). Drop the ignores when those pins are bumped.
       - name: Audit Poetry environment
-        run: poetry run pip-audit --local --ignore-vuln PYSEC-2026-2192 --ignore-vuln PYSEC-2026-4240
+        run: poetry run pip-audit --local
       # function_app/ has its own dependencies; audit them in their own venv,
       # never in the Poetry environment.
       - name: Audit function_app requirements

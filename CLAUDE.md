@@ -35,7 +35,7 @@ Env var names (`.env`, see `.env.example`; meanings in `docs/development.md`): `
 - `mcp[cli]<2.0.0` is pinned on purpose: `langchain-mcp-adapters` (latest `0.3.2`) hard-pins `mcp<2.0.0`, and the agent and `scripts/verify_deployed_mcp.py` use it via `MultiServerMCPClient`. Stay on v1 until the adapter moves.
 - `tfl_status_agent/server.py` calls `load_dotenv()` before its other imports because they read env vars at import time; ruff's E402 is ignored for that file in `pyproject.toml`.
 - After adding or changing tools, deploy the Function App first, then the agent (it fetches tool schemas at startup; its system prompt is baked into the image).
-- The pip-audit step in `security.yml` ignores two advisories fixed only by bumping the pinned `langchain` (to 1.3.9) and `langgraph-sdk` (to 0.4.4); remove the `--ignore-vuln` flags when those pins move. `langchain` 1.3.9 needs `langgraph` >=1.2.4, so the exactly pinned `langchain`, `langgraph`, `langgraph-prebuilt` and `langchain-openai` move together: bump them by hand in one PR if Dependabot's grouped PR does not.
+- `langchain`, `langgraph`, `langgraph-prebuilt` and `langchain-openai` are pinned exactly and move together (`langchain` 1.3.x needs `langgraph` >=1.2.4): bump them by hand in one PR if Dependabot's grouped PR does not.
 - Dependabot (`.github/dependabot.yml`) opens weekly PRs: one grouped PR per ecosystem for minor and patch updates, majors separate, only releases older than 14 days. Alerts and security updates are repo settings. Dependabot PRs get no secrets, so the AI review skips them.
 
 ## Pointers

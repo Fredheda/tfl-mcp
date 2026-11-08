@@ -4,7 +4,7 @@ Repo-specific facts. Everything else (response style, git and worktrees, tickets
 
 PR titles and descriptions never mention Claude Code. Run `scripts/ci-local.sh` green before `gh pr ready`.
 
-- **Merging:** the owner merges, except Dependabot patch or minor bumps that touch nothing under `.github/`, and docs-only PRs (only `.md` files, `CLAUDE.md` included, and `docs/`; never `.claude/` or workflows). The coordinator merges those after review, once every CI check passed and, for docs PRs, the automated GitHub review passed. Rules: workspace `CLAUDE.md`, Git.
+- **Merging:** the owner merges, except the bot and docs classes in the workspace `CLAUDE.md` (Git), which the coordinator merges.
 
 ## What this is
 

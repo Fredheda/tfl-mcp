@@ -40,6 +40,7 @@ Env var names (`.env`, see `.env.example`; meanings in `docs/development.md`): `
 - `tfl_status_agent/server.py` calls `load_dotenv()` before its other imports because they read env vars at import time; ruff's E402 is ignored for that file in `pyproject.toml`.
 - After adding or changing tools, deploy the Function App first, then the agent (it fetches tool schemas at startup; its system prompt is baked into the image).
 - `langchain`, `langgraph`, `langgraph-prebuilt` and `langchain-openai` are pinned exactly and move together (`langchain` 1.3.x needs `langgraph` >=1.2.4): bump them by hand in one PR if Dependabot's grouped PR does not.
+- Dependencies: `poetry.toml` sets a 14-day install cooldown, Poetry and pip are pinned exactly (bump together, `docs/development.md`, "Dependencies") and actions are pinned by commit; `tests/test_supply_chain.py` guards all of it.
 - Dependabot (`.github/dependabot.yml`) opens weekly PRs: one grouped PR per ecosystem for minor and patch updates, majors separate, only releases older than 14 days. Alerts and security updates are repo settings. Dependabot PRs get no secrets, so the AI review skips them.
 
 ## Pointers

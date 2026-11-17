@@ -91,6 +91,14 @@ poetry run bandit -r . -lll -x ./tests,./function_app/tests,./.venv,./function_a
 gitleaks git . --redact
 ```
 
+## Dependencies
+
+- **Cooldown:** `poetry.toml` makes Poetry resolve only releases at least 14 days old, the same window as Dependabot. `poetry install` is not affected: it installs what `poetry.lock` names.
+- **A security fix younger than 14 days** is taken only on the owner's yes for that package and version, with a one-off command and no committed exclusion: `POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE=<package> poetry update <package>`.
+- **Exact pins:** Poetry is pinned in `.github/workflows/ci.yml`, `.github/workflows/security.yml` and `tfl_status_agent/Dockerfile` (the image also pins pip); bump all three together. GitHub Actions are pinned by commit with the release as a comment; Dependabot updates them.
+- `function_app/requirements.txt` still holds version ranges without hashes; the guard names it as a known exception.
+- `tests/test_supply_chain.py` fails the PR when one of these rules is broken.
+
 ## Changing tools
 
 Deploy the Function App first, then the agent (why: `CLAUDE.md`, "Gotchas"). How: [deployment/README.md](../deployment/README.md).

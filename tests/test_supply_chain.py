@@ -9,12 +9,15 @@
 6. `function_app/requirements.txt` holds exact `==` pins only (no hashes, on
    purpose), its compile script applies the 14-day window with the image's pip,
    and CI and `ci-local.sh` install pytest under the same window.
+7. Every Docker image (a `FROM` base and a `docker run` image) carries its
+   `@sha256:` digest, and a Dockerfile uses one digest per base image.
 
 To bump Poetry, change the `poetry==` pin in `.github/workflows/ci.yml`,
 `.github/workflows/security.yml` and `tfl_status_agent/Dockerfile` together.
 """
 
 import re
+import shlex
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -36,6 +39,26 @@ PIP_SOURCES = (
     "scripts/ci-local.sh",
 )
 PIP_WINDOW = "PIP_UPLOADED_PRIOR_TO=P14D"
+DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
+FROM_LINE = re.compile(
+    r"^FROM\s+(?:--\S+\s+)?(?P<image>\S+)(?:\s+AS\s+(?P<alias>\S+))?\s*$",
+    re.IGNORECASE,
+)
+RUN_OPTIONS_WITH_VALUE = {
+    "-v",
+    "--volume",
+    "-w",
+    "--workdir",
+    "-e",
+    "--env",
+    "-u",
+    "--user",
+    "--entrypoint",
+    "--name",
+    "-p",
+    "--publish",
+}
+HEX64 = "0123456789abcdef" * 4
 
 USES_LINE = re.compile(r"^\s*(?:-\s+)?uses:\s*(?P<ref>\S+)(?P<rest>.*)$")
 PINNED_REF = re.compile(r"^[\w./-]+@[0-9a-f]{40}$")
@@ -275,3 +298,113 @@ def test_pytest_install_without_the_window_is_rejected():
     assert is_unwindowed_pytest_install(
         "function_app/.venv/bin/pip install pytest==9.1.1"
     )
+
+
+def dockerfile_bases(path: Path) -> list[str]:
+    """Base images of a Dockerfile's stages: no stage aliases, no `scratch`."""
+    stages = [
+        match
+        for line in path.read_text().splitlines()
+        if (match := FROM_LINE.match(line.strip()))
+    ]
+    aliases = {match["alias"].lower() for match in stages if match["alias"]}
+    return [
+        match["image"]
+        for match in stages
+        if match["image"].lower() not in aliases | {"scratch"}
+    ]
+
+
+def docker_run_image(line: str) -> str | None:
+    """The image of a `docker run` line, read after the options and their values."""
+    text = line.strip()
+    if text.startswith("#") or "docker run" not in text:
+        return None
+    tokens = shlex.split(text.split("docker run", 1)[1].rstrip("\\"))
+    index = 0
+    while index < len(tokens) and tokens[index].startswith("-"):
+        index += 2 if tokens[index] in RUN_OPTIONS_WITH_VALUE else 1
+    return tokens[index] if index < len(tokens) else None
+
+
+def test_every_dockerfile_base_image_is_pinned_by_digest():
+    found = [
+        f"{path.relative_to(REPO_ROOT)}: {image}"
+        for path in project_files("*Dockerfile")
+        for image in dockerfile_bases(path)
+        if not DIGEST.search(image)
+    ]
+    assert found == []
+
+
+def test_every_docker_run_image_is_pinned_by_digest():
+    found: list[str] = []
+    for path in project_files(".github/workflows/*", "*.sh"):
+        for number, line in enumerate(path.read_text().splitlines(), start=1):
+            image = docker_run_image(line)
+            if image is not None and not DIGEST.search(image):
+                found.append(f"{path.relative_to(REPO_ROOT)}:{number}: {image}")
+    assert found == []
+
+
+def test_one_digest_per_base_image_in_a_dockerfile():
+    for path in project_files("*Dockerfile"):
+        digests: dict[str, set[str]] = {}
+        for image in dockerfile_bases(path):
+            name, _, digest = image.partition("@")
+            digests.setdefault(name, set()).add(digest)
+        assert all(len(found) == 1 for found in digests.values()), (path.name, digests)
+
+
+def test_stage_aliases_and_scratch_are_not_base_images(tmp_path: Path):
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text(
+        "FROM python:3.13-slim AS builder\n"
+        "FROM scratch\n"
+        "FROM builder\n"
+        "FROM --platform=linux/amd64 node:24-alpine AS web\n"
+    )
+    assert dockerfile_bases(dockerfile) == ["python:3.13-slim", "node:24-alpine"]
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        f"python:3.13-slim@sha256:{HEX64}",
+        f"ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:{HEX64}",
+    ],
+)
+def test_digest_pinned_image_is_accepted(image: str):
+    assert DIGEST.search(image)
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "python:3.13-slim",
+        f"python:3.13-slim@sha256:{HEX64[:63]}",
+        f"python:3.13-slim@sha256:{HEX64.upper()}",
+        f"python:3.13-slim@sha512:{HEX64}",
+    ],
+)
+def test_tag_only_short_uppercase_or_other_digest_is_rejected(image: str):
+    assert not DIGEST.search(image)
+
+
+@pytest.mark.parametrize(
+    ("line", "image"),
+    [
+        (
+            'docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \\',
+            "ghcr.io/gitleaks/gitleaks:v8.30.1",
+        ),
+        (
+            '          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 \\',
+            "rhysd/actionlint:1.7.12",
+        ),
+        ("# docker run --rm alpine", None),
+        ("echo done", None),
+    ],
+)
+def test_docker_run_image_is_read_after_option_values(line: str, image: str | None):
+    assert docker_run_image(line) == image

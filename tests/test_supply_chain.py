@@ -6,6 +6,9 @@
 3. Every GitHub Action pinned by commit, with its release as a comment.
 4. No `npx -y`.
 5. One Poetry version across CI and the agent image.
+6. `function_app/requirements.txt` holds exact `==` pins only (no hashes, on
+   purpose), its compile script applies the 14-day window with the image's pip,
+   and CI and `ci-local.sh` install pytest under the same window.
 
 To bump Poetry, change the `poetry==` pin in `.github/workflows/ci.yml`,
 `.github/workflows/security.yml` and `tfl_status_agent/Dockerfile` together.
@@ -20,10 +23,19 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Installed with `-r` although it holds version ranges and no hashes. TA-32
-# replaces it with hashed requirements; that PR must delete this entry, and
-# `test_unhashed_exception_is_still_needed` fails until it does.
-UNHASHED_REQUIREMENTS = {"function_app/requirements.txt"}
+# Installed with `-r` because it pins every package with `==`, checked line by
+# line below. It has no hashes on purpose: Azure's remote build installs it, and
+# exact pins under the 14-day window were chosen over hashes for this file.
+PINNED_REQUIREMENTS = {"function_app/requirements.txt"}
+COMPILE_SCRIPT = "scripts/compile-function-requirements.sh"
+DOCKERFILE = "tfl_status_agent/Dockerfile"
+PIP_SOURCES = (
+    COMPILE_SCRIPT,
+    DOCKERFILE,
+    ".github/workflows/ci.yml",
+    "scripts/ci-local.sh",
+)
+PIP_WINDOW = "PIP_UPLOADED_PRIOR_TO=P14D"
 
 USES_LINE = re.compile(r"^\s*(?:-\s+)?uses:\s*(?P<ref>\S+)(?P<rest>.*)$")
 PINNED_REF = re.compile(r"^[\w./-]+@[0-9a-f]{40}$")
@@ -32,6 +44,8 @@ INSTALL_LINE = re.compile(r"\b(?:pip|pipx) install\b(?P<args>.*)")
 EXACT_PIN = re.compile(r"^[A-Za-z0-9_.\[\]-]+==[0-9][A-Za-z0-9.]*$")
 NPX_YES = re.compile(r"\bnpx\s+(?:-y|--yes)\b")
 POETRY_PIN = re.compile(r"\bpoetry==([0-9][0-9.]*)")
+PIP_PIN = re.compile(r"\bpip==([0-9][0-9.]*)")
+PINNED_LINE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*==[0-9][A-Za-z0-9.+!]*$")
 
 
 def project_files(*pathspecs: str) -> list[Path]:
@@ -80,6 +94,8 @@ def has_loose_install(line: str) -> bool:
     if match is None:
         return False
     tokens = re.split(r"&&|\|\||[|;\\]", match["args"])[0].split()
+    if "--dry-run" in tokens:
+        return False
     loose = False
     index = 0
     while index < len(tokens):
@@ -87,7 +103,7 @@ def has_loose_install(line: str) -> bool:
         if token == "-r":
             index += 1
             requirements = tokens[index].strip("\"'") if index < len(tokens) else ""
-            loose = loose or requirements not in UNHASHED_REQUIREMENTS
+            loose = loose or requirements not in PINNED_REQUIREMENTS
         elif not token.startswith("-") and not EXACT_PIN.match(token):
             loose = True
         index += 1
@@ -118,15 +134,42 @@ def test_pip_and_pipx_install_only_exact_versions():
     assert offending_lines(install_sources(), has_loose_install) == []
 
 
-def test_unhashed_exception_is_still_needed():
-    stale = [
-        name
-        for name in sorted(UNHASHED_REQUIREMENTS)
-        if "--hash=" in (REPO_ROOT / name).read_text()
-    ]
-    assert stale == [], (
-        f"{stale} has hashes now: delete its UNHASHED_REQUIREMENTS entry"
-    )
+def is_loose_requirement(line: str) -> bool:
+    text = line.strip()
+    return bool(text) and not text.startswith("#") and not PINNED_LINE.match(text)
+
+
+def test_pinned_requirements_hold_only_exact_pins():
+    found: list[str] = []
+    for name in sorted(PINNED_REQUIREMENTS):
+        lines = (REPO_ROOT / name).read_text().splitlines()
+        assert any(PINNED_LINE.match(line) for line in lines), f"{name} pins nothing"
+        found += [f"{name}: {line}" for line in lines if is_loose_requirement(line)]
+    assert found == []
+
+
+def test_compile_script_applies_the_14_day_window():
+    script = REPO_ROOT / COMPILE_SCRIPT
+    assert script.exists(), f"{COMPILE_SCRIPT} is missing"
+    assert PIP_WINDOW in script.read_text()
+
+
+def test_compile_script_ci_and_the_image_pin_the_same_pip():
+    def pins(name: str) -> set[str]:
+        path = REPO_ROOT / name
+        return set(PIP_PIN.findall(path.read_text())) if path.exists() else set()
+
+    per_file = {name: pins(name) for name in PIP_SOURCES}
+    assert all(len(found) == 1 for found in per_file.values()), per_file
+    assert len(set().union(*per_file.values())) == 1, per_file
+
+
+def is_unwindowed_pytest_install(line: str) -> bool:
+    return "pytest==" in line and " install " in line and PIP_WINDOW not in line
+
+
+def test_pytest_installs_apply_the_14_day_window():
+    assert offending_lines(install_sources(), is_unwindowed_pytest_install) == []
 
 
 def test_ci_and_the_image_install_one_poetry_version():
@@ -181,6 +224,7 @@ def test_tag_branch_short_or_uncommented_use_is_rejected(line: str):
         "RUN pip install --no-cache-dir pip==26.2.2 \\",
         "      - run: poetry run pip install pip-audit==2.10.1 bandit==1.9.4",
         "  function_app/.venv/bin/pip install -r function_app/requirements.txt pytest==9.1.1",
+        '"$py" -m pip install --ignore-installed --dry-run --report r.json "requests>=2.34.2"',
     ],
 )
 def test_exact_install_is_accepted(line: str):
@@ -198,3 +242,36 @@ def test_exact_install_is_accepted(line: str):
 )
 def test_range_unpinned_or_unknown_requirements_install_is_rejected(line: str):
     assert has_loose_install(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["requests==2.34.2", "azure-functions==2.3.0", "# Generated by a script", ""],
+)
+def test_exact_pin_comment_and_blank_lines_are_accepted(line: str):
+    assert not is_loose_requirement(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "requests>=2.34.2",
+        "requests",
+        "requests==2.*",
+        "requests==2.34.2 --hash=sha256:abc",
+        "-r other.txt",
+    ],
+)
+def test_range_bare_wildcard_hashed_or_option_line_is_rejected(line: str):
+    assert is_loose_requirement(line)
+
+
+def test_windowed_pytest_install_is_accepted():
+    line = "      - run: PIP_UPLOADED_PRIOR_TO=P14D function_app/.venv/bin/pip install pytest==9.1.1"
+    assert not is_unwindowed_pytest_install(line)
+
+
+def test_pytest_install_without_the_window_is_rejected():
+    assert is_unwindowed_pytest_install(
+        "function_app/.venv/bin/pip install pytest==9.1.1"
+    )

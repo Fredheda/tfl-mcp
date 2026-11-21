@@ -37,7 +37,7 @@ It creates the managed identity `id-tfl-mcp-gh-deploy` with Website Contributor 
 
 ### Limits
 
-- Rollback rebuilds the dependencies from the old commit's `function_app/requirements.txt`. That file uses `>=` ranges, so an old SHA can pick up newer library versions than it ran with originally.
+- Rollback rebuilds the dependencies from the old commit's `function_app/requirements.txt`, which pins every package with `==`, so an old SHA installs the versions it ran with. The file has no hashes: a tampered file for an already pinned version would not be caught.
 - Flex Consumption has no deployment slots; a bad deploy is fixed by deploying the previous SHA.
 - The workflow covers Function App code only. Infra (`infra/deploy.sh`) and the MCP key stay manual; see [local.md](local.md).
 - `scripts/deploy-mcp-tools.sh` still works as the laptop fallback.

@@ -20,7 +20,9 @@ updates:
         patterns: ["*"]
         update-types: [minor, patch]
 
-  # function_app/ has its own requirements.txt and isolated environment.
+  # function_app/ has its own requirements.txt (every package pinned with ==, no
+  # hashes) and isolated environment. Dependabot bumps single pins; `pip check` in
+  # CI fails a bump that leaves another package unsatisfied.
   - package-ecosystem: pip
     directory: /function_app
     schedule:

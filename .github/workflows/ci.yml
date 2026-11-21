@@ -78,7 +78,12 @@ jobs:
           cache: pip
           cache-dependency-path: function_app/requirements.txt
       - run: python -m venv function_app/.venv
-      - run: function_app/.venv/bin/pip install -r function_app/requirements.txt pytest==9.1.1
+      - run: function_app/.venv/bin/pip install pip==26.2.2
+      - name: Install the pinned requirements and check the list is complete
+        run: |
+          function_app/.venv/bin/pip install --no-deps -r function_app/requirements.txt
+          function_app/.venv/bin/pip check
+      - run: PIP_UPLOADED_PRIOR_TO=P14D function_app/.venv/bin/pip install pytest==9.1.1
       - name: Run function_app tests
         working-directory: function_app
         run: .venv/bin/pytest tests -v

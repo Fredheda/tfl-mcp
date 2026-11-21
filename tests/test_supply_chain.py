@@ -24,9 +24,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Installed with `-r` because it pins every package with `==`, checked line by
-# line below. It has no hashes on purpose: the Function App's own build installs
-# it, and exact pins without hashes were chosen for it (TA-32,
-# docs/tfl-mcp/specs/2026-11-21-function-app-pinned-requirements.md).
+# line below. It has no hashes on purpose: Azure's remote build installs it, and
+# exact pins under the 14-day window were chosen over hashes for this file.
 PINNED_REQUIREMENTS = {"function_app/requirements.txt"}
 COMPILE_SCRIPT = "scripts/compile-function-requirements.sh"
 DOCKERFILE = "tfl_status_agent/Dockerfile"

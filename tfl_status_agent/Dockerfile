@@ -1,5 +1,5 @@
 # Build context is the repo root: `docker build -f tfl_status_agent/Dockerfile .`
-FROM python:3.13-slim AS builder
+FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 AS builder
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ RUN poetry install --only main --no-interaction --no-ansi
 
 COPY tfl_status_agent/ ./tfl_status_agent/
 
-FROM python:3.13-slim
+FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
 
 WORKDIR /app
 COPY --from=builder /app/.venv ./.venv

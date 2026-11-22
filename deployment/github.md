@@ -10,7 +10,7 @@ Pull requests are opened as drafts. A draft runs only the light jobs; marking it
 
 The `main` ruleset requires five checks: `backend`, `function-app-test`, `gitleaks`, `bandit` and `workflow-lint`. `pip-audit` and `codeql` stay advisory, so a new advisory against an old dependency never blocks an unrelated PR. A draft cannot merge, and `bandit` and `function-app-test` skip on drafts and run when the PR is ready. The weekly run scans the full history.
 
-`.github/workflows/claude-review.yml` posts an AI security-first review when a PR is ready (not a draft) and on every push to it. The repo owner can also request one by commenting `@claude`. It is comment-only. Besides the security-first review, every review runs a documentation check: it reports documentation that now contradicts the change, changes with no matching documentation update, and stale names, paths, counts or versions, or says "Docs: current". Its token expiry is in [expirations.md](expirations.md).
+`.github/workflows/claude-review.yml` posts an AI security-first review when a PR is ready (not a draft) and on every push to it. The repo owner can also request one by commenting `@claude`. It is comment-only. Besides the security-first review, every review runs a documentation check: it reports documentation that now contradicts the change, changes with no matching documentation update, and stale names, paths, counts or versions, or says "Docs: current". The last line of every review is an advisory `Verdict: ready to merge` or `Verdict: changes requested (N open)`; after a fix push it reflects the current diff only. Its token expiry is in [expirations.md](expirations.md).
 
 ## Function App: the Deploy functions workflow
 

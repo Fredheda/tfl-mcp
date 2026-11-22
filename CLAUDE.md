@@ -28,7 +28,7 @@ Run from the repo root unless noted. Python 3.13, Poetry 2.x.
 | Type check | `poetry run pyright` |
 | All CI checks | `scripts/ci-local.sh` (the gate before `gh pr ready`) |
 
-CI runs on PRs only, as `backend` and `function-app-test`; `function-app-test` and the AI review wait for `gh pr ready`. The `main` ruleset requires those two plus `gitleaks`, `bandit` and `workflow-lint` from `security.yml`. Workflows, review and local security commands: `deployment/github.md`, `docs/development.md`.
+CI runs on PRs only, as `backend` and `function-app-test`; `function-app-test` and the AI review wait for `gh pr ready`. The AI review is advisory and ends with a `Verdict:` line. The `main` ruleset requires those two plus `gitleaks`, `bandit` and `workflow-lint` from `security.yml`. Workflows, review and local security commands: `deployment/github.md`, `docs/development.md`.
 
 Env var names (`.env`, see `.env.example`; meanings in `docs/development.md`): `OPENAI_API_KEY`, `FUNCTION_APP_URL`, `FUNCTION_MCP_KEY`, optional `TFL_STATUS_AGENT_PUBLIC_URL`; after `scripts/setup-agent-auth.sh` also `AGENT_AAD_CLIENT_ID` and `AGENT_AAD_TENANT_ID`, read by `infra/deploy.sh`.
 

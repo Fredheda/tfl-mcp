@@ -41,7 +41,7 @@ Env var names (`.env`, see `.env.example`; meanings in `docs/development.md`): `
 - After adding or changing tools, deploy the Function App first, then the agent (it fetches tool schemas at startup; its system prompt is baked into the image).
 - `langchain`, `langgraph`, `langgraph-prebuilt` and `langchain-openai` are pinned exactly and move together (`langchain` 1.3.x needs `langgraph` >=1.2.4): bump them by hand in one PR if Dependabot's grouped PR does not.
 - Dependencies: `poetry.toml` sets a 14-day install cooldown, Poetry and pip are pinned exactly (bump together, `docs/development.md`, "Dependencies"), actions are pinned by commit and Docker images by digest; `function_app/requirements.txt` pins every package with `==` (no hashes, by design; regenerate with `scripts/compile-function-requirements.sh`); `tests/test_supply_chain.py` guards all of it.
-- Dependabot (`.github/dependabot.yml`) opens weekly PRs: one grouped PR per ecosystem for minor and patch updates, majors separate, only releases older than 14 days. Alerts and security updates are repo settings. Dependabot PRs get no secrets, so the AI review skips them.
+- Dependabot (`.github/dependabot.yml`) opens weekly PRs: one grouped PR per ecosystem for minor and patch updates, majors separate, only releases older than 14 days; the agent image's Python minor and major updates are ignored. Alerts and security updates are repo settings. Dependabot PRs get no secrets, so the AI review skips them.
 
 ## Pointers
 
